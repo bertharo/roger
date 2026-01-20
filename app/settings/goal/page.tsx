@@ -67,6 +67,8 @@ export default function GoalSettingsPage() {
   const handleSave = async () => {
     if (!goal) return;
     
+    console.log('Saving goal:', goal);
+    
     setIsSaving(true);
     try {
       const response = await fetch('/api/goal', {
@@ -75,20 +77,38 @@ export default function GoalSettingsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(goal),
+        credentials: 'include', // Important: include cookies in request
       });
       
       const data = await response.json();
+      console.log('Save response:', data);
       
       if (response.ok) {
+        // Wait a moment for cookie to be set, then verify
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         // Verify the goal was saved by reloading it
-        const verifyResponse = await fetch('/api/goal');
+        const verifyResponse = await fetch('/api/goal', {
+          credentials: 'include', // Important: include cookies
+        });
         if (verifyResponse.ok) {
           const savedGoal = await verifyResponse.json();
           console.log('Goal saved and verified:', savedGoal);
+          
+          // Check if the saved goal matches what we sent
+          if (savedGoal.raceDateISO === goal.raceDateISO && 
+              savedGoal.distanceMi === goal.distanceMi &&
+              savedGoal.targetTimeMinutes === goal.targetTimeMinutes) {
+            alert('Goal saved successfully!');
+            window.history.back();
+          } else {
+            console.warn('Goal mismatch:', { sent: goal, saved: savedGoal });
+            alert('Goal saved but verification failed. Please refresh the page.');
+          }
+        } else {
+          console.error('Verification failed');
+          alert('Goal saved but could not verify. Please refresh the page.');
         }
-        
-        alert('Goal saved successfully!');
-        window.history.back();
       } else {
         alert(`Failed to save goal: ${data.error || 'Unknown error'}`);
         console.error('Save failed:', data);
