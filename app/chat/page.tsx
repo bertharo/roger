@@ -63,11 +63,42 @@ export default function ChatPage() {
       
       const transformedRun = transformRecentRun(runs);
       setRecentRun(transformedRun);
+      setRuns(runs);
       
       await loadPlan(runs, goalData);
+      await loadTwelveWeekPlan(goalData, runs);
     };
     initialize();
   }, []);
+  
+  const loadTwelveWeekPlan = async (goalData: any, runsData: any[]) => {
+    try {
+      const response = await fetch('/api/plan/twelve-week', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          goal: goalData,
+          runs: runsData,
+        }),
+      });
+      
+      if (response.ok) {
+        const plansData = await response.json();
+        const transformed = plansData.map((p: any) => transformPlanToDashboardFormat(p));
+        setTwelveWeekPlans(transformed);
+      }
+    } catch (error) {
+      console.error('Failed to load 12-week plan:', error);
+    }
+  };
+  
+  const handleWeekSelect = (weekIndex: number, weekPlan: WeeklyPlan) => {
+    setSelectedWeekIndex(weekIndex);
+    setPlan(weekPlan);
+    setExpandedDayIndex(null);
+  };
 
   const loadPlan = async (runs?: any[], goalData?: any) => {
     try {
