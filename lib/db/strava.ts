@@ -17,12 +17,20 @@ export interface StravaConnectionRow {
 export async function getStravaConnection(userId?: string): Promise<StravaConnectionRow | null> {
   // For now, get the most recent connection (single user)
   // TODO: Add proper user authentication
-  const sql = userId
-    ? `SELECT * FROM strava_connections WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1`
-    : `SELECT * FROM strava_connections ORDER BY updated_at DESC LIMIT 1`;
-  
-  const params = userId ? [userId] : [];
-  return queryOne<StravaConnectionRow>(sql, params);
+  if (userId) {
+    return queryOne<StravaConnectionRow>`
+      SELECT * FROM strava_connections 
+      WHERE user_id = ${userId} 
+      ORDER BY updated_at DESC 
+      LIMIT 1
+    `;
+  } else {
+    return queryOne<StravaConnectionRow>`
+      SELECT * FROM strava_connections 
+      ORDER BY updated_at DESC 
+      LIMIT 1
+    `;
+  }
 }
 
 /**
@@ -46,24 +54,17 @@ export async function saveStravaConnection(
   
   if (existing) {
     // Update existing connection
-    const sql = `
+    const result = await queryOne<StravaConnectionRow>`
       UPDATE strava_connections 
       SET 
-        athlete_id = $1,
-        access_token = $2,
-        refresh_token = $3,
-        token_expires_at = $4,
+        athlete_id = ${connection.athleteId},
+        access_token = ${connection.accessToken},
+        refresh_token = ${connection.refreshToken || null},
+        token_expires_at = ${connection.tokenExpiresAt?.toISOString() || null},
         updated_at = NOW()
-      WHERE id = $5
+      WHERE id = ${existing.id}
       RETURNING *
     `;
-    const result = await queryOne<StravaConnectionRow>(sql, [
-      connection.athleteId,
-      connection.accessToken,
-      connection.refreshToken || null,
-      connection.tokenExpiresAt?.toISOString() || null,
-      existing.id,
-    ]);
     
     if (!result) {
       throw new Error('Failed to update Strava connection');
@@ -72,18 +73,11 @@ export async function saveStravaConnection(
     return result;
   } else {
     // Insert new connection
-    const sql = `
+    const result = await queryOne<StravaConnectionRow>`
       INSERT INTO strava_connections (user_id, athlete_id, access_token, refresh_token, token_expires_at)
-      VALUES ($1, $2, $3, $4, $5)
+      VALUES (${defaultUserId}, ${connection.athleteId}, ${connection.accessToken}, ${connection.refreshToken || null}, ${connection.tokenExpiresAt?.toISOString() || null})
       RETURNING *
     `;
-    const result = await queryOne<StravaConnectionRow>(sql, [
-      defaultUserId,
-      connection.athleteId,
-      connection.accessToken,
-      connection.refreshToken || null,
-      connection.tokenExpiresAt?.toISOString() || null,
-    ]);
     
     if (!result) {
       throw new Error('Failed to create Strava connection');
@@ -98,6 +92,8 @@ export async function saveStravaConnection(
  */
 export async function deleteStravaConnection(userId?: string): Promise<void> {
   const defaultUserId = userId || '00000000-0000-0000-0000-000000000000';
-  const sql = `DELETE FROM strava_connections WHERE user_id = $1`;
-  await query(sql, [defaultUserId]);
+  await query`
+    DELETE FROM strava_connections 
+    WHERE user_id = ${defaultUserId}
+  `;
 }
