@@ -1,10 +1,18 @@
-import { Run, PaceProfile } from '../types';
+import { Run, PaceProfile, Goal } from '../types';
+
+/**
+ * Calculate goal pace from target time and distance
+ */
+export function calculateGoalPace(goal: Goal): number {
+  return goal.targetTimeMinutes / goal.distance;
+}
 
 /**
  * Infer pace profile from the most recent 3-5 runs.
  * This determines easy pace range and threshold pace.
+ * Now also considers goal pace for progressive training.
  */
-export function inferPaceProfile(runs: Run[]): PaceProfile {
+export function inferPaceProfile(runs: Run[], goal?: Goal): PaceProfile {
   // Sort by date, most recent first
   const sortedRuns = [...runs].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -64,6 +72,19 @@ export function inferPaceProfile(runs: Run[]): PaceProfile {
     // Estimate from easy pace: threshold is ~30-45s faster per mile
     const avgEasy = (easyPaceRange[0] + easyPaceRange[1]) / 2;
     thresholdPace = Math.max(5.0, Math.min(12.0, avgEasy - 0.75));
+  }
+  
+  // If goal is provided, adjust threshold pace toward goal pace
+  // Threshold should be faster than goal pace (goal pace is race pace)
+  if (goal) {
+    const goalPace = calculateGoalPace(goal);
+    // Threshold pace should be between current threshold and goal pace
+    // If goal pace is much faster, we need to work toward it
+    if (goalPace < thresholdPace) {
+      // Goal is faster - blend current fitness with goal
+      // Start closer to current, but acknowledge the goal
+      thresholdPace = Math.max(goalPace + 0.3, thresholdPace * 0.95);
+    }
   }
   
   // Determine fitness trend

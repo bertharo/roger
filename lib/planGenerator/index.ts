@@ -16,12 +16,30 @@ export function generateWeeklyPlan(
     : new Date();
   startDate.setHours(0, 0, 0, 0);
   
-  // Get pace profile from recent runs
-  const paceProfile = inferPaceProfile(recentRuns);
+  // Get pace profile from recent runs (with goal consideration)
+  const paceProfile = inferPaceProfile(recentRuns, goal);
   
   // Calculate days until goal
   const raceDate = new Date(goal.raceDate);
   const daysToGoal = Math.ceil((raceDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  return generateWeeklyPlanWithPaces(goal, recentRuns, weekStartDate, paceProfile, daysToGoal);
+}
+
+/**
+ * Generate weekly plan with specific pace profile
+ */
+export function generateWeeklyPlanWithPaces(
+  goal: Goal,
+  recentRuns: Run[],
+  weekStartDate: string | undefined,
+  paceProfile: PaceProfile,
+  daysToGoal: number
+): WeeklyPlan {
+  const startDate = weekStartDate 
+    ? new Date(weekStartDate)
+    : new Date();
+  startDate.setHours(0, 0, 0, 0);
   
   // Generate 7 days
   const days: WeeklyPlanDay[] = [];
@@ -118,29 +136,33 @@ function generateDayPlan(
     case 2: // Tuesday
       if (daysToGoal > 21) {
         // More than 3 weeks out: tempo work
+        // Tempo pace should be threshold pace
         return {
           date,
           dayOfWeek,
           runType: 'tempo',
           distanceMiles: 5.0,
           paceRangeMinPerMile: [
-            paceProfile.thresholdPace - 0.2,
-            paceProfile.thresholdPace + 0.2,
+            Math.round((paceProfile.thresholdPace - 0.2) * 10) / 10,
+            Math.round((paceProfile.thresholdPace + 0.2) * 10) / 10,
           ],
           coachingIntent: `Tempo run at threshold pace (${paceProfile.thresholdPace.toFixed(1)} min/mi). Comfortably hard effort.`,
         };
       } else {
         // Closer to race: intervals
+        // Intervals should be faster than threshold, approaching goal pace
+        const goalPace = goal.targetTimeMinutes / goal.distance;
+        const intervalPace = Math.max(goalPace - 0.3, paceProfile.thresholdPace - 0.5);
         return {
           date,
           dayOfWeek,
           runType: 'interval',
           distanceMiles: 4.0,
           paceRangeMinPerMile: [
-            paceProfile.thresholdPace - 0.5,
-            paceProfile.thresholdPace - 0.2,
+            Math.round((intervalPace - 0.2) * 10) / 10,
+            Math.round((intervalPace + 0.2) * 10) / 10,
           ],
-          coachingIntent: 'Interval workout to sharpen speed. Include warm-up and cool-down.',
+          coachingIntent: `Interval workout at ${intervalPace.toFixed(1)} min/mi to sharpen speed. Include warm-up and cool-down.`,
         };
       }
       
@@ -162,10 +184,10 @@ function generateDayPlan(
           runType: 'tempo',
           distanceMiles: 4.5,
           paceRangeMinPerMile: [
-            paceProfile.thresholdPace - 0.2,
-            paceProfile.thresholdPace + 0.2,
+            Math.round((paceProfile.thresholdPace - 0.2) * 10) / 10,
+            Math.round((paceProfile.thresholdPace + 0.2) * 10) / 10,
           ],
-          coachingIntent: 'Moderate tempo run. Build lactate threshold.',
+          coachingIntent: `Moderate tempo run at ${paceProfile.thresholdPace.toFixed(1)} min/mi. Build lactate threshold.`,
         };
       } else {
         return {
@@ -173,7 +195,10 @@ function generateDayPlan(
           dayOfWeek,
           runType: 'easy',
           distanceMiles: 3.5,
-          paceRangeMinPerMile: paceProfile.easyPaceRange,
+          paceRangeMinPerMile: [
+            Math.round(paceProfile.easyPaceRange[0] * 10) / 10,
+            Math.round(paceProfile.easyPaceRange[1] * 10) / 10,
+          ],
           coachingIntent: 'Easy run before the weekend long effort.',
         };
       }

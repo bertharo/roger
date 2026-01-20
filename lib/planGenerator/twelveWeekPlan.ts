@@ -95,15 +95,52 @@ function generateWeeklyPlanWithTarget(
   const startDate = new Date(weekStartDate);
   startDate.setHours(0, 0, 0, 0);
   
-  // Get pace profile from recent runs
-  const paceProfile = inferPaceProfile(recentRuns);
+  // Calculate goal pace
+  const goalPace = goal.targetTimeMinutes / goal.distance;
+  
+  // Get current pace profile from recent runs
+  const currentPaceProfile = inferPaceProfile(recentRuns, goal);
+  
+  // Calculate current average pace from recent runs
+  const currentAvgPace = recentRuns.length > 0
+    ? recentRuns.slice(0, 5).reduce((sum, r) => sum + r.averagePaceMinPerMile, 0) / Math.min(5, recentRuns.length)
+    : 8.0; // Default if no runs
+  
+  // Calculate pace gap (how much faster we need to get)
+  const paceGap = currentAvgPace - goalPace;
+  
+  // Progress over 12 weeks: 0% at week 0, 100% at week 11 (race week)
+  // But we don't want to hit goal pace until race week, so taper at 85-90%
+  const progress = weekIndex < 8 
+    ? weekIndex / 8 * 0.85  // Build phase: get to 85% of goal by week 8
+    : 0.85 + (weekIndex - 8) / 4 * 0.1; // Taper: get to 95% by race week
+  
+  // Calculate target paces for this week
+  // Easy pace: stays relatively stable, maybe gets slightly faster
+  const targetEasyPace = currentPaceProfile.easyPaceRange[0] - (paceGap * 0.2 * progress);
+  const easyPaceRange: [number, number] = [
+    Math.max(goalPace + 2.0, Math.round(targetEasyPace * 10) / 10),
+    Math.max(goalPace + 2.5, Math.round((targetEasyPace + 0.5) * 10) / 10),
+  ];
+  
+  // Threshold pace: progressive toward goal pace
+  // Threshold should be faster than goal pace (goal is race pace)
+  const targetThreshold = currentPaceProfile.thresholdPace - (paceGap * 0.6 * progress);
+  const thresholdPace = Math.max(goalPace + 0.2, Math.round(targetThreshold * 10) / 10);
+  
+  // Create progressive pace profile
+  const progressivePaceProfile: typeof currentPaceProfile = {
+    easyPaceRange,
+    thresholdPace,
+    fitnessTrend: currentPaceProfile.fitnessTrend,
+  };
   
   // Calculate days until goal
   const raceDate = new Date(goal.raceDate);
   const daysToGoal = Math.ceil((raceDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   
-  // Generate base plan
-  const basePlan = generateWeeklyPlan(goal, recentRuns, weekStartDate);
+  // Generate base plan with progressive paces
+  const basePlan = generateWeeklyPlanWithPaces(goal, recentRuns, weekStartDate, progressivePaceProfile, daysToGoal);
   
   // Scale distances to match target weekly mileage
   const currentTotal = basePlan.days.reduce((sum, day) => sum + day.distanceMiles, 0);
