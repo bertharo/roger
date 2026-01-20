@@ -133,9 +133,12 @@ export default function ChatPage() {
   
   const handleWeekSelect = (weekIndex: number, weekPlan: WeeklyPlan) => {
     console.log('handleWeekSelect called:', weekIndex, weekPlan);
+    console.log('Week plan days:', weekPlan.days);
     setSelectedWeekIndex(weekIndex);
-    setPlan(weekPlan);
+    // Create a new object to ensure React detects the change
+    setPlan({ ...weekPlan });
     setExpandedDayIndex(null);
+    console.log('Plan state updated, new plan:', { ...weekPlan });
   };
 
   const loadPlan = async (runs?: any[], goalData?: any, weekStart?: string) => {
