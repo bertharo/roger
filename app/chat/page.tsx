@@ -45,16 +45,47 @@ export default function ChatPage() {
         // Use mock data as fallback
       }
       
-      // Load goal from API instead of mock data
+      // Load goal from localStorage first, then API, then mock data
       let goalData = mockData.goal; // Fallback to mock data
+      
+      // Try localStorage first (fastest, most reliable)
       try {
-        const goalResponse = await fetch('/api/goal');
-        if (goalResponse.ok) {
-          goalData = await goalResponse.json();
+        const savedGoal = localStorage.getItem('user_goal');
+        if (savedGoal) {
+          const parsed = JSON.parse(savedGoal);
+          // Convert dashboard format to core format
+          goalData = {
+            raceDate: parsed.raceDateISO,
+            distance: parsed.distanceMi,
+            targetTimeMinutes: parsed.targetTimeMinutes,
+          };
         }
-      } catch (error) {
-        console.error('Error loading goal:', error);
-        // Use mock data as fallback
+      } catch (e) {
+        console.error('Error loading goal from localStorage:', e);
+      }
+      
+      // Fallback to API if localStorage didn't have it
+      if (goalData === mockData.goal) {
+        try {
+          const goalResponse = await fetch('/api/goal', {
+            credentials: 'include',
+          });
+          if (goalResponse.ok) {
+            goalData = await goalResponse.json();
+            // Also save to localStorage for next time
+            try {
+              const transformed = transformGoal(goalData);
+              if (transformed) {
+                localStorage.setItem('user_goal', JSON.stringify(transformed));
+              }
+            } catch (e) {
+              // Ignore localStorage errors
+            }
+          }
+        } catch (error) {
+          console.error('Error loading goal from API:', error);
+          // Use mock data as fallback
+        }
       }
       
       const transformedGoal = transformGoal(goalData);

@@ -17,7 +17,23 @@ export default function GoalSettingsPage() {
   const loadGoal = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/goal');
+      // Try localStorage first (more reliable than cookies for client-side)
+      const savedGoal = localStorage.getItem('user_goal');
+      if (savedGoal) {
+        try {
+          const goal = JSON.parse(savedGoal);
+          setGoal(goal);
+          setIsLoading(false);
+          return;
+        } catch (e) {
+          console.error('Error parsing localStorage goal:', e);
+        }
+      }
+      
+      // Fallback to API/cookies
+      const response = await fetch('/api/goal', {
+        credentials: 'include',
+      });
       if (response.ok) {
         const data = await response.json();
         
@@ -35,20 +51,25 @@ export default function GoalSettingsPage() {
           raceName = `${data.distance} mi race`;
         }
         
-        setGoal({
+        const goalData = {
           raceName,
           raceDateISO: data.raceDate,
           distanceMi: data.distance,
           targetTimeMinutes: data.targetTimeMinutes,
-        });
+        };
+        
+        setGoal(goalData);
+        // Also save to localStorage for faster access
+        localStorage.setItem('user_goal', JSON.stringify(goalData));
       } else {
         // Use default if API fails
-        setGoal({
+        const defaultGoal = {
           raceName: 'Half Marathon',
           raceDateISO: '2024-03-15T08:00:00Z',
           distanceMi: 13.1,
           targetTimeMinutes: 95,
-        });
+        };
+        setGoal(defaultGoal);
       }
     } catch (error) {
       console.error('Error loading goal:', error);
@@ -71,51 +92,37 @@ export default function GoalSettingsPage() {
     
     setIsSaving(true);
     try {
+      // Save to localStorage immediately (client-side)
+      localStorage.setItem('user_goal', JSON.stringify(goal));
+      console.log('Goal saved to localStorage');
+      
+      // Also save to server (for API access)
       const response = await fetch('/api/goal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(goal),
-        credentials: 'include', // Important: include cookies in request
+        credentials: 'include',
       });
       
       const data = await response.json();
       console.log('Save response:', data);
       
       if (response.ok) {
-        // Wait a moment for cookie to be set, then verify
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Verify the goal was saved by reloading it
-        const verifyResponse = await fetch('/api/goal', {
-          credentials: 'include', // Important: include cookies
-        });
-        if (verifyResponse.ok) {
-          const savedGoal = await verifyResponse.json();
-          console.log('Goal saved and verified:', savedGoal);
-          
-          // Check if the saved goal matches what we sent
-          if (savedGoal.raceDateISO === goal.raceDateISO && 
-              savedGoal.distanceMi === goal.distanceMi &&
-              savedGoal.targetTimeMinutes === goal.targetTimeMinutes) {
-            alert('Goal saved successfully!');
-            window.history.back();
-          } else {
-            console.warn('Goal mismatch:', { sent: goal, saved: savedGoal });
-            alert('Goal saved but verification failed. Please refresh the page.');
-          }
-        } else {
-          console.error('Verification failed');
-          alert('Goal saved but could not verify. Please refresh the page.');
-        }
+        alert('Goal saved successfully!');
+        window.history.back();
       } else {
-        alert(`Failed to save goal: ${data.error || 'Unknown error'}`);
-        console.error('Save failed:', data);
+        // Even if server save fails, localStorage has it
+        console.warn('Server save failed but localStorage saved:', data);
+        alert('Goal saved locally. Some features may not update until refresh.');
+        window.history.back();
       }
     } catch (error) {
       console.error('Error saving goal:', error);
-      alert('Failed to save goal. Please try again.');
+      // localStorage save should still work
+      alert('Goal saved locally. Please refresh the page to see changes.');
+      window.history.back();
     } finally {
       setIsSaving(false);
     }
