@@ -20,13 +20,11 @@ export async function GET(request: NextRequest) {
     
     if (goalCookieMatch && goalCookieMatch[1]) {
       try {
-        // Decode the cookie value (it might be URL encoded)
+        // Decode the cookie value (it's URL encoded when set)
         let cookieValue = goalCookieMatch[1];
-        try {
-          cookieValue = decodeURIComponent(cookieValue);
-        } catch (e) {
-          // If decode fails, use as-is (might not be encoded)
-        }
+        // Replace + with space (URL encoding) and decode
+        cookieValue = cookieValue.replace(/\+/g, ' ');
+        cookieValue = decodeURIComponent(cookieValue);
         
         const goal = JSON.parse(cookieValue);
         console.log('Loaded goal from cookie:', goal);
