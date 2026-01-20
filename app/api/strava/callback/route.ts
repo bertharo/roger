@@ -7,32 +7,41 @@ import { NextRequest } from 'next/server';
  * It exchanges the authorization code for an access token.
  */
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get('code');
-  const error = searchParams.get('error');
-
-  if (error) {
-    return Response.redirect('/settings?error=strava_auth_failed');
-  }
-
-  if (!code) {
-    return Response.redirect('/settings?error=no_code');
-  }
-
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  
-  // Determine redirect URI based on environment
-  const host = request.headers.get('host') || '';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const redirectUri = process.env.STRAVA_REDIRECT_URI || 
-    `${protocol}://${host}/api/strava/callback`;
-
-  if (!clientId || !clientSecret) {
-    return Response.redirect('/settings?error=config_missing');
-  }
-
   try {
+    const { searchParams } = new URL(request.url);
+    const code = searchParams.get('code');
+    const error = searchParams.get('error');
+
+    // Get base URL for redirects
+    const host = request.headers.get('host') || '';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+
+    if (error) {
+      console.error('Strava OAuth error from Strava:', error);
+      return Response.redirect(`${baseUrl}/settings?error=strava_auth_failed`);
+    }
+
+    if (!code) {
+      console.error('No authorization code received from Strava');
+      return Response.redirect(`${baseUrl}/settings?error=no_code`);
+    }
+
+    const clientId = process.env.STRAVA_CLIENT_ID;
+    const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+    
+    // Determine redirect URI based on environment
+    const redirectUri = process.env.STRAVA_REDIRECT_URI || 
+      `${baseUrl}/api/strava/callback`;
+
+    if (!clientId || !clientSecret) {
+      console.error('Missing Strava credentials:', {
+        hasClientId: !!clientId,
+        hasClientSecret: !!clientSecret,
+      });
+      return Response.redirect(`${baseUrl}/settings?error=config_missing`);
+    }
+
     // Exchange authorization code for access token
     const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
@@ -48,11 +57,22 @@ export async function GET(request: NextRequest) {
     });
 
     if (!tokenResponse.ok) {
-      throw new Error('Failed to exchange code for token');
+      const errorText = await tokenResponse.text();
+      console.error('Strava token exchange failed:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText,
+      });
+      return Response.redirect(`${baseUrl}/settings?error=token_exchange_failed`);
     }
 
     const tokenData = await tokenResponse.json();
     const { access_token, refresh_token, athlete } = tokenData;
+
+    if (!access_token || !athlete) {
+      console.error('Invalid token response from Strava:', tokenData);
+      return Response.redirect(`${baseUrl}/settings?error=invalid_token_response`);
+    }
 
     // TODO: Store tokens securely in your database
     // Example:
@@ -66,15 +86,21 @@ export async function GET(request: NextRequest) {
     // });
 
     // For now, just log (in production, store in database)
-    console.log('Strava connected:', {
+    console.log('Strava connected successfully:', {
       athleteId: athlete.id,
       athleteName: `${athlete.firstname} ${athlete.lastname}`,
+      hasAccessToken: !!access_token,
+      hasRefreshToken: !!refresh_token,
     });
 
     // Redirect to settings page with success
-    return Response.redirect('/settings?connected=true');
+    return Response.redirect(`${baseUrl}/settings?connected=true`);
   } catch (error) {
-    console.error('Strava OAuth error:', error);
-    return Response.redirect('/settings?error=token_exchange_failed');
+    console.error('Unexpected error in Strava callback:', error);
+    // Get base URL for error redirect
+    const host = request.headers.get('host') || '';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+    return Response.redirect(`${baseUrl}/settings?error=unexpected_error`);
   }
 }

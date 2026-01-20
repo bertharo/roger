@@ -10,6 +10,22 @@ export default function SettingsPage() {
   useEffect(() => {
     // Check if Strava is already connected
     checkStravaConnection();
+    
+    // Check for OAuth callback parameters
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get('connected');
+    const error = params.get('error');
+    
+    if (connected === 'true') {
+      setIsConnected(true);
+      // Clean up URL
+      window.history.replaceState({}, '', '/settings');
+    } else if (error) {
+      console.error('Strava connection error:', error);
+      alert(`Failed to connect Strava: ${error}`);
+      // Clean up URL
+      window.history.replaceState({}, '', '/settings');
+    }
   }, []);
 
   const checkStravaConnection = async () => {
