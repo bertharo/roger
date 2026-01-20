@@ -83,12 +83,17 @@ export async function POST(request: NextRequest) {
       targetTimeMinutes,
     });
     
-    response.cookies.set('user_goal', encodeURIComponent(goalCookie), {
+    // Encode the cookie value to handle special characters
+    const encodedCookie = encodeURIComponent(goalCookie);
+    response.cookies.set('user_goal', encodedCookie, {
       httpOnly: false, // Allow client-side access for now
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 365, // 1 year
+      path: '/',
     });
+    
+    console.log('Goal cookie set:', { original: goalCookie, encoded: encodedCookie });
     
     return response;
   } catch (error) {
