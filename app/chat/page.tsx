@@ -9,6 +9,12 @@ import { formatTime } from '@/lib/utils/formatting';
 import { castMockRuns } from '@/lib/utils/typeHelpers';
 import mockData from '@/data/stravaMock.json';
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
 export default function ChatPage() {
   const [plan, setPlan] = useState<WeeklyPlan | null>(null);
   const [recentRun, setRecentRun] = useState<RecentRun | null>(null);
@@ -17,6 +23,7 @@ export default function ChatPage() {
   const [confidence, setConfidence] = useState<'low' | 'medium' | 'high'>('medium');
   const [chatLoading, setChatLoading] = useState(false);
   const [expandedDayIndex, setExpandedDayIndex] = useState<number | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
     const initialize = async () => {
@@ -63,7 +70,15 @@ export default function ChatPage() {
   };
 
   const handleChatSend = async (message: string) => {
+    // Add user message to chat history
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: message,
+      timestamp: new Date(),
+    };
+    setChatMessages(prev => [...prev, userMessage]);
     setChatLoading(true);
+    
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -79,6 +94,17 @@ export default function ChatPage() {
       if (response.ok) {
         const data = await response.json();
         
+        // Add assistant response to chat history
+        if (data.assistantMessage) {
+          const assistantMessage: ChatMessage = {
+            role: 'assistant',
+            content: data.assistantMessage,
+            timestamp: new Date(),
+          };
+          setChatMessages(prev => [...prev, assistantMessage]);
+        }
+        
+        // Update plan if modified
         if (data.updatedPlan) {
           const transformed = transformPlanToDashboardFormat(data.updatedPlan);
           setPlan(transformed);
@@ -87,18 +113,30 @@ export default function ChatPage() {
         // Handle error response
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         
+        // Add error message to chat
+        const errorMessage: ChatMessage = {
+          role: 'assistant',
+          content: `Sorry, I encountered an error: ${errorData.error || 'Failed to process your message'}`,
+          timestamp: new Date(),
+        };
+        setChatMessages(prev => [...prev, errorMessage]);
+        
         if (response.status === 429) {
           if (errorData.errorType === 'quota_exceeded') {
             alert('⚠️ OpenAI API quota exceeded.\n\nPlease check your OpenAI account billing and plan. The chat feature is temporarily unavailable until you add credits or upgrade your plan.\n\nVisit: https://platform.openai.com/account/billing');
           } else {
             alert('⚠️ Rate limit exceeded. Please wait a moment and try again.');
           }
-        } else {
-          alert(`Error: ${errorData.error || 'Failed to send message'}`);
         }
       }
     } catch (error) {
       console.error('Error sending message:', error);
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please check your connection and try again.',
+        timestamp: new Date(),
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
       alert('Failed to send message. Please check your connection and try again.');
     } finally {
       setChatLoading(false);
@@ -117,6 +155,7 @@ export default function ChatPage() {
         chatLoading={chatLoading}
         expandedDayIndex={expandedDayIndex}
         onDayExpand={setExpandedDayIndex}
+        chatMessages={chatMessages}
       />
     </div>
   );

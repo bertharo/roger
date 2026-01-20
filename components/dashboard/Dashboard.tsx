@@ -5,7 +5,14 @@ import { TopSummary } from './TopSummary';
 import { CoachSummary } from './CoachSummary';
 import { WeekPlanList } from './WeekPlanList';
 import { ChatBar } from './ChatBar';
+import { ChatMessages } from './ChatMessages';
 import { useState, useEffect } from 'react';
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
 
 interface DashboardProps {
   plan: WeeklyPlan | null;
@@ -17,6 +24,7 @@ interface DashboardProps {
   chatLoading?: boolean;
   expandedDayIndex?: number | null;
   onDayExpand?: (index: number | null) => void;
+  chatMessages?: ChatMessage[];
 }
 
 export function Dashboard({
@@ -29,6 +37,7 @@ export function Dashboard({
   chatLoading,
   expandedDayIndex,
   onDayExpand,
+  chatMessages = [],
 }: DashboardProps) {
   const [chatPlaceholder, setChatPlaceholder] = useState("Ask about your plan...");
 
@@ -57,6 +66,11 @@ export function Dashboard({
         />
         
         <CoachSummary recentRun={recentRun} plan={plan} />
+        
+        {/* Chat Messages */}
+        {chatMessages.length > 0 && (
+          <ChatMessages messages={chatMessages} />
+        )}
         
         <div className="flex-1 overflow-y-auto pb-20">
           <WeekPlanList plan={plan} onDayClick={handleDayClick} expandedIndex={expandedDayIndex} />
