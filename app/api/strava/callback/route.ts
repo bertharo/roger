@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Strava OAuth Callback Endpoint
@@ -19,12 +19,12 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Strava OAuth error from Strava:', error);
-      return Response.redirect(`${baseUrl}/settings?error=strava_auth_failed`);
+      return NextResponse.redirect(`${baseUrl}/settings?error=strava_auth_failed`);
     }
 
     if (!code) {
       console.error('No authorization code received from Strava');
-      return Response.redirect(`${baseUrl}/settings?error=no_code`);
+      return NextResponse.redirect(`${baseUrl}/settings?error=no_code`);
     }
 
     const clientId = process.env.STRAVA_CLIENT_ID;
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         hasClientId: !!clientId,
         hasClientSecret: !!clientSecret,
       });
-      return Response.redirect(`${baseUrl}/settings?error=config_missing`);
+      return NextResponse.redirect(`${baseUrl}/settings?error=config_missing`);
     }
 
     // Exchange authorization code for access token
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         statusText: tokenResponse.statusText,
         error: errorText,
       });
-      return Response.redirect(`${baseUrl}/settings?error=token_exchange_failed`);
+      return NextResponse.redirect(`${baseUrl}/settings?error=token_exchange_failed`);
     }
 
     const tokenData = await tokenResponse.json();
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
 
     if (!access_token || !athlete) {
       console.error('Invalid token response from Strava:', tokenData);
-      return Response.redirect(`${baseUrl}/settings?error=invalid_token_response`);
+      return NextResponse.redirect(`${baseUrl}/settings?error=invalid_token_response`);
     }
 
     // TODO: Store tokens securely in your database
@@ -87,21 +87,23 @@ export async function GET(request: NextRequest) {
 
     // Temporary: Store token in cookie (until database is set up)
     // In production, store tokens securely in database
-    const redirectResponse = Response.redirect(`${baseUrl}/settings?connected=true`);
+    const redirectResponse = NextResponse.redirect(`${baseUrl}/settings?connected=true`);
     
     // Set cookies with tokens (HttpOnly for security)
-    const cookieOptions = `HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
-    redirectResponse.headers.set(
-      'Set-Cookie',
-      `strava_access_token=${access_token}; ${cookieOptions}`
-    );
+    redirectResponse.cookies.set('strava_access_token', access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 days (Strava tokens expire, but this is temporary)
+    });
     
     if (refresh_token) {
-      const refreshCookieOptions = `HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 365}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
-      redirectResponse.headers.append(
-        'Set-Cookie',
-        `strava_refresh_token=${refresh_token}; ${refreshCookieOptions}`
-      );
+      redirectResponse.cookies.set('strava_refresh_token', refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 365, // 1 year
+      });
     }
 
     // Log success
@@ -119,6 +121,6 @@ export async function GET(request: NextRequest) {
     const host = request.headers.get('host') || '';
     const protocol = host.includes('localhost') ? 'http' : 'https';
     const baseUrl = `${protocol}://${host}`;
-    return Response.redirect(`${baseUrl}/settings?error=unexpected_error`);
+    return NextResponse.redirect(`${baseUrl}/settings?error=unexpected_error`);
   }
 }
