@@ -23,23 +23,41 @@ This app uses Neon (serverless Postgres) for data persistence.
 ## Schema
 
 The database includes:
-- **users**: User accounts (for future multi-user support)
-- **goals**: Race goals (distance, date, target time)
-- **strava_connections**: Strava OAuth tokens and athlete info
+- **users**: User accounts with email/password authentication
+- **accounts**: OAuth provider accounts (for future OAuth support)
+- **sessions**: User session tokens
+- **verification_tokens**: Email verification tokens
+- **goals**: Race goals (distance, date, target time) - user-specific
+- **strava_connections**: Strava OAuth tokens and athlete info - user-specific
 
 ## Migration from Cookies/LocalStorage
 
-The app automatically falls back to cookies/localStorage if the database is not available. Once you set up the database:
+After setting up authentication:
 
-1. Goals will be saved to the database instead of localStorage
-2. Strava tokens will be saved to the database instead of cookies
-3. Existing data in cookies/localStorage will still work as a fallback
+1. Users must sign up/sign in to use the app
+2. Goals are saved to the database and are user-specific
+3. Strava connections are saved to the database and are user-specific
+4. Each user has their own isolated data
+
+## Running the Migration
+
+If you already have the database set up, run the migration script to add authentication tables:
+
+```bash
+# Option 1: Using Neon's SQL Editor
+# Copy the contents of scripts/migrate-auth.sql and run it in the Neon SQL Editor
+
+# Option 2: Using psql
+psql $DATABASE_URL -f scripts/migrate-auth.sql
+```
 
 ## Environment Variables
 
 Add these to your Vercel project settings (or `.env.local` for local development):
 
 - `DATABASE_URL`: Your Neon connection string
+- `NEXTAUTH_SECRET`: A random secret for NextAuth.js (generate with `openssl rand -base64 32`)
+- `NEXTAUTH_URL`: Your app URL (e.g., `http://localhost:3000` for local, `https://yourdomain.com` for production)
 - `OPENAI_API_KEY`: Your OpenAI API key
 - `STRAVA_CLIENT_ID`: Your Strava app client ID
 - `STRAVA_CLIENT_SECRET`: Your Strava app client secret
