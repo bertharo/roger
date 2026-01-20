@@ -83,9 +83,23 @@ export default function ChatPage() {
           const transformed = transformPlanToDashboardFormat(data.updatedPlan);
           setPlan(transformed);
         }
+      } else {
+        // Handle error response
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        
+        if (response.status === 429) {
+          if (errorData.errorType === 'quota_exceeded') {
+            alert('⚠️ OpenAI API quota exceeded.\n\nPlease check your OpenAI account billing and plan. The chat feature is temporarily unavailable until you add credits or upgrade your plan.\n\nVisit: https://platform.openai.com/account/billing');
+          } else {
+            alert('⚠️ Rate limit exceeded. Please wait a moment and try again.');
+          }
+        } else {
+          alert(`Error: ${errorData.error || 'Failed to send message'}`);
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error);
+      alert('Failed to send message. Please check your connection and try again.');
     } finally {
       setChatLoading(false);
     }
