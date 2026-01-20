@@ -36,7 +36,7 @@ export function WeekPlanList({ plan, onDayClick, expandedIndex: controlledExpand
       <div className="bg-white">
         {plan.days.map((day, index) => (
           <DayRow
-            key={day.dateISO}
+            key={`${plan.weekStartISO}-${day.dateISO}-${index}`}
             day={day}
             isExpanded={expandedIndex === index}
             onToggle={() => handleToggle(index)}
