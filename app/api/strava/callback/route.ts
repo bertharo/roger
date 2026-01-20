@@ -87,23 +87,21 @@ export async function GET(request: NextRequest) {
 
     // Temporary: Store token in cookie (until database is set up)
     // In production, store tokens securely in database
-    const response = Response.redirect(`${baseUrl}/settings?connected=true`);
+    const redirectResponse = Response.redirect(`${baseUrl}/settings?connected=true`);
     
     // Set cookies with tokens (HttpOnly for security)
-    response.cookies.set('strava_access_token', access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 days (Strava tokens expire, but this is temporary)
-    });
+    const cookieOptions = `HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+    redirectResponse.headers.set(
+      'Set-Cookie',
+      `strava_access_token=${access_token}; ${cookieOptions}`
+    );
     
     if (refresh_token) {
-      response.cookies.set('strava_refresh_token', refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 365, // 1 year
-      });
+      const refreshCookieOptions = `HttpOnly; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 365}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+      redirectResponse.headers.append(
+        'Set-Cookie',
+        `strava_refresh_token=${refresh_token}; ${refreshCookieOptions}`
+      );
     }
 
     // Log success
@@ -114,7 +112,7 @@ export async function GET(request: NextRequest) {
       hasRefreshToken: !!refresh_token,
     });
 
-    return response;
+    return redirectResponse;
   } catch (error) {
     console.error('Unexpected error in Strava callback:', error);
     // Get base URL for error redirect
