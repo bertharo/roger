@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getStravaConnection } from '@/lib/db/strava';
+import { getUserId } from '@/lib/auth/getSession';
 
 /**
  * Check Strava Connection Status
@@ -9,10 +10,13 @@ import { getStravaConnection } from '@/lib/db/strava';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Try database first
-    try {
-      const connection = await getStravaConnection();
-      if (connection && connection.access_token) {
+    const userId = await getUserId();
+    
+    // Try database first (if user is logged in)
+    if (userId) {
+      try {
+        const connection = await getStravaConnection(userId);
+        if (connection && connection.access_token) {
         // Check if token is expired
         const isExpired = connection.token_expires_at 
           ? new Date(connection.token_expires_at) < new Date()

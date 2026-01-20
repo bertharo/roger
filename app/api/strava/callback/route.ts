@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveStravaConnection } from '@/lib/db/strava';
+import { getUserId } from '@/lib/auth/getSession';
 
 /**
  * Strava OAuth Callback Endpoint
@@ -74,7 +75,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${baseUrl}/settings?error=invalid_token_response`);
     }
 
-    // Try to save to database first
+    // Get user ID from session
+    const userId = await getUserId();
+    
+    if (!userId) {
+      // User not logged in - redirect to sign in
+      return NextResponse.redirect(`${baseUrl}/auth/signin?error=login_required&message=Please sign in to connect Strava`);
+    }
+    
+    // Try to save to database
     try {
       // Calculate token expiration (Strava tokens typically expire in 6 hours)
       const tokenExpiresAt = new Date();
@@ -85,9 +94,9 @@ export async function GET(request: NextRequest) {
         accessToken: access_token,
         refreshToken: refresh_token,
         tokenExpiresAt,
-      });
+      }, userId);
       
-      console.log('Strava connection saved to database');
+      console.log('Strava connection saved to database for user:', userId);
     } catch (dbError) {
       console.error('Database save failed, falling back to cookies:', dbError);
       // Fallback to cookies if database fails

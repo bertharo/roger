@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGoal, saveGoal } from '@/lib/db/goals';
+import { getUserId } from '@/lib/auth/getSession';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,18 +11,22 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Try to load from database first
-    try {
-      const goalRow = await getGoal();
-      if (goalRow) {
-        return NextResponse.json({
-          raceDate: goalRow.race_date_iso,
-          distance: Number(goalRow.distance_mi),
-          targetTimeMinutes: goalRow.target_time_minutes,
-        });
+    const userId = await getUserId();
+    
+    // Try to load from database first (if user is logged in)
+    if (userId) {
+      try {
+        const goalRow = await getGoal(userId);
+        if (goalRow) {
+          return NextResponse.json({
+            raceDate: goalRow.race_date_iso,
+            distance: Number(goalRow.distance_mi),
+            targetTimeMinutes: goalRow.target_time_minutes,
+          });
+        }
+      } catch (dbError) {
+        console.error('Database error, falling back to localStorage/cookies:', dbError);
       }
-    } catch (dbError) {
-      console.error('Database error, falling back to localStorage/cookies:', dbError);
     }
     
     // Fallback to localStorage/cookies if database fails
@@ -71,15 +76,24 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Try to save to database first
+    const userId = await getUserId();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required. Please sign in to save your goal.' },
+        { status: 401 }
+      );
+    }
+    
+    // Try to save to database
     try {
-      console.log('Attempting to save goal to database:', { raceName, raceDateISO, distanceMi, targetTimeMinutes });
+      console.log('Attempting to save goal to database:', { raceName, raceDateISO, distanceMi, targetTimeMinutes, userId });
       const goalRow = await saveGoal({
         raceName,
         raceDateISO,
         distanceMi,
         targetTimeMinutes,
-      });
+      }, userId);
       
       console.log('Goal saved successfully to database:', goalRow);
       

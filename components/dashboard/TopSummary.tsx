@@ -1,6 +1,7 @@
 import { Goal } from '@/lib/types/dashboard';
 import { daysBetween } from '@/lib/utils/formatting';
 import Link from 'next/link';
+import { UserMenu } from '@/components/auth/UserMenu';
 
 interface TopSummaryProps {
   goal: Goal | null;

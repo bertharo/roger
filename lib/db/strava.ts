@@ -14,23 +14,17 @@ export interface StravaConnectionRow {
 /**
  * Get Strava connection for a user
  */
-export async function getStravaConnection(userId?: string): Promise<StravaConnectionRow | null> {
-  // For now, get the most recent connection (single user)
-  // TODO: Add proper user authentication
-  if (userId) {
-    return queryOne<StravaConnectionRow>`
-      SELECT * FROM strava_connections 
-      WHERE user_id = ${userId} 
-      ORDER BY updated_at DESC 
-      LIMIT 1
-    `;
-  } else {
-    return queryOne<StravaConnectionRow>`
-      SELECT * FROM strava_connections 
-      ORDER BY updated_at DESC 
-      LIMIT 1
-    `;
+export async function getStravaConnection(userId: string | null): Promise<StravaConnectionRow | null> {
+  if (!userId) {
+    return null;
   }
+
+  return queryOne<StravaConnectionRow>`
+    SELECT * FROM strava_connections 
+    WHERE user_id = ${userId} 
+    ORDER BY updated_at DESC 
+    LIMIT 1
+  `;
 }
 
 /**
@@ -43,13 +37,14 @@ export async function saveStravaConnection(
     refreshToken?: string;
     tokenExpiresAt?: Date;
   },
-  userId?: string
+  userId: string
 ): Promise<StravaConnectionRow> {
-  // For now, use NULL user_id (single user app)
-  // TODO: Add proper user authentication
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
   
-  // Check if connection exists (by checking if any connection exists)
-  const existing = await getStravaConnection();
+  // Check if connection exists for this user
+  const existing = await getStravaConnection(userId);
   
   if (existing) {
     // Update existing connection
@@ -71,10 +66,10 @@ export async function saveStravaConnection(
     
     return result;
   } else {
-    // Insert new connection with NULL user_id (single user app)
+    // Insert new connection
     const result = await queryOne<StravaConnectionRow>`
       INSERT INTO strava_connections (user_id, athlete_id, access_token, refresh_token, token_expires_at)
-      VALUES (NULL, ${connection.athleteId}, ${connection.accessToken}, ${connection.refreshToken || null}, ${connection.tokenExpiresAt?.toISOString() || null})
+      VALUES (${userId}, ${connection.athleteId}, ${connection.accessToken}, ${connection.refreshToken || null}, ${connection.tokenExpiresAt?.toISOString() || null})
       RETURNING *
     `;
     
@@ -89,10 +84,13 @@ export async function saveStravaConnection(
 /**
  * Delete Strava connection
  */
-export async function deleteStravaConnection(userId?: string): Promise<void> {
-  // Delete the most recent connection (single user app)
+export async function deleteStravaConnection(userId: string): Promise<void> {
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+
   await query`
     DELETE FROM strava_connections 
-    WHERE id = (SELECT id FROM strava_connections ORDER BY updated_at DESC LIMIT 1)
+    WHERE user_id = ${userId}
   `;
 }

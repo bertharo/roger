@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStravaConnection } from '@/lib/db/strava';
+import { getUserId } from '@/lib/auth/getSession';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,11 +10,20 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Try to get token from database first
+    const userId = await getUserId();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required. Please sign in to view your Strava activities.' },
+        { status: 401 }
+      );
+    }
+    
+    // Try to get token from database
     let accessToken: string | null = null;
     
     try {
-      const connection = await getStravaConnection();
+      const connection = await getStravaConnection(userId);
       if (connection && connection.access_token) {
         // Check if token is expired
         const isExpired = connection.token_expires_at 
