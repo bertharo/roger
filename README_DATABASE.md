@@ -41,15 +41,25 @@ After setting up authentication:
 
 ## Running the Migration
 
-If you already have the database set up, run the migration script to add authentication tables:
+**IMPORTANT**: If you already have the database set up, you MUST run the migration script to add authentication support:
 
 ```bash
-# Option 1: Using Neon's SQL Editor
-# Copy the contents of scripts/migrate-auth.sql and run it in the Neon SQL Editor
+# Option 1: Using Neon's SQL Editor (Recommended)
+# 1. Go to your Neon dashboard
+# 2. Open the SQL Editor
+# 3. Copy the contents of scripts/migrate-auth-complete.sql
+# 4. Paste and run it
 
 # Option 2: Using psql
-psql $DATABASE_URL -f scripts/migrate-auth.sql
+psql $DATABASE_URL -f scripts/migrate-auth-complete.sql
 ```
+
+**What the migration does:**
+- Adds `name`, `password_hash`, `email_verified`, and `image` columns to the `users` table
+- Creates `accounts`, `sessions`, and `verification_tokens` tables for NextAuth.js
+- Creates necessary indexes for performance
+
+**If you see errors about missing columns**, make sure you've run the migration script!
 
 ## Environment Variables
 

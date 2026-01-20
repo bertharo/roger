@@ -28,12 +28,27 @@ export async function createUser(
   // Hash password
   const passwordHash = await bcrypt.hash(password, 10);
 
-  // Create user
-  const user = await queryOne<User>`
-    INSERT INTO users (email, name, password_hash)
-    VALUES (${email}, ${name || null}, ${passwordHash})
-    RETURNING id, email, name, created_at
-  `;
+  // Create user - handle case where name column might not exist yet
+  // If name column doesn't exist, it will be NULL
+  let user: User | null;
+  try {
+    user = await queryOne<User>`
+      INSERT INTO users (email, name, password_hash)
+      VALUES (${email}, ${name || null}, ${passwordHash})
+      RETURNING id, email, COALESCE(name, NULL) as name, created_at
+    `;
+  } catch (error: any) {
+    // If name column doesn't exist, try without it
+    if (error?.code === '42703' && error?.message?.includes('name')) {
+      user = await queryOne<User>`
+        INSERT INTO users (email, password_hash)
+        VALUES (${email}, ${passwordHash})
+        RETURNING id, email, NULL as name, created_at
+      `;
+    } else {
+      throw error;
+    }
+  }
 
   if (!user) {
     throw new Error('Failed to create user');
