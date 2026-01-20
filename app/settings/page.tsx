@@ -8,10 +8,7 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Check if Strava is already connected
-    checkStravaConnection();
-    
-    // Check for OAuth callback parameters
+    // Check for OAuth callback parameters first
     const params = new URLSearchParams(window.location.search);
     const connected = params.get('connected');
     const error = params.get('error');
@@ -20,11 +17,18 @@ export default function SettingsPage() {
       setIsConnected(true);
       // Clean up URL
       window.history.replaceState({}, '', '/settings');
+      // Re-check connection status after a brief delay to ensure cookie is set
+      setTimeout(() => {
+        checkStravaConnection();
+      }, 500);
     } else if (error) {
       console.error('Strava connection error:', error);
       alert(`Failed to connect Strava: ${error}`);
       // Clean up URL
       window.history.replaceState({}, '', '/settings');
+    } else {
+      // Check if Strava is already connected
+      checkStravaConnection();
     }
   }, []);
 
