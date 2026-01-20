@@ -9,17 +9,16 @@ export default function SettingsPage() {
 
   useEffect(() => {
     // Check if Strava is already connected
-    // In production, this would check your database/API
     checkStravaConnection();
   }, []);
 
   const checkStravaConnection = async () => {
     try {
-      // TODO: Replace with actual API call to check connection status
-      // const response = await fetch('/api/strava/status');
-      // const data = await response.json();
-      // setIsConnected(data.connected);
-      setIsConnected(false); // Currently using mock data
+      const response = await fetch('/api/strava/status');
+      if (response.ok) {
+        const data = await response.json();
+        setIsConnected(data.connected);
+      }
     } catch (error) {
       console.error('Error checking Strava connection:', error);
     }
@@ -29,13 +28,7 @@ export default function SettingsPage() {
     setIsLoading(true);
     
     // Redirect to Strava OAuth
-    // In production, this would be: window.location.href = '/api/strava/connect';
-    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI || 'http://localhost:3000/api/strava/callback')}&scope=activity:read_all`;
-    
-    // For now, show a message since we don't have Strava credentials set up
-    alert('Strava OAuth integration coming soon!\n\nTo set this up:\n1. Create a Strava app at https://www.strava.com/settings/api\n2. Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET to .env\n3. Implement OAuth flow in /app/api/strava/');
-    
-    setIsLoading(false);
+    window.location.href = '/api/strava/connect';
   };
 
   const handleDisconnectStrava = async () => {
@@ -136,14 +129,13 @@ export default function SettingsPage() {
         </div>
 
         {/* Info Section */}
-        <div className="text-xs text-gray-500 space-y-2">
-          <p>
-            <strong>Note:</strong> Currently using mock data. Connect Strava to sync your real runs.
-          </p>
-          <p>
-            To set up Strava OAuth, see the implementation guide in the codebase.
-          </p>
-        </div>
+        {!isConnected && (
+          <div className="text-xs text-gray-500 space-y-2">
+            <p>
+              <strong>Note:</strong> Currently using mock data. Connect Strava to sync your real runs.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

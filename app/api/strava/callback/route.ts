@@ -21,7 +21,12 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.STRAVA_CLIENT_ID;
   const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  const redirectUri = process.env.STRAVA_REDIRECT_URI || 'http://localhost:3000/api/strava/callback';
+  
+  // Determine redirect URI based on environment
+  const host = request.headers.get('host') || '';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const redirectUri = process.env.STRAVA_REDIRECT_URI || 
+    `${protocol}://${host}/api/strava/callback`;
 
   if (!clientId || !clientSecret) {
     return Response.redirect('/settings?error=config_missing');
