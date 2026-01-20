@@ -45,12 +45,12 @@ export async function saveGoal(
   },
   userId?: string
 ): Promise<GoalRow> {
-  // For now, use a default user_id or create one
+  // For now, use NULL user_id (single user app)
+  // The schema allows NULL user_id, so we don't need a foreign key
   // TODO: Add proper user authentication
-  const defaultUserId = userId || '00000000-0000-0000-0000-000000000000';
   
-  // Check if goal exists
-  const existing = await getGoal(defaultUserId);
+  // Check if goal exists (by checking if any goal exists, since we're single user)
+  const existing = await getGoal();
   
   if (existing) {
     // Update existing goal
@@ -72,10 +72,10 @@ export async function saveGoal(
     
     return result;
   } else {
-    // Insert new goal
+    // Insert new goal with NULL user_id (single user app)
     const result = await queryOne<GoalRow>`
       INSERT INTO goals (user_id, race_name, race_date_iso, distance_mi, target_time_minutes)
-      VALUES (${defaultUserId}, ${goal.raceName || null}, ${goal.raceDateISO}, ${goal.distanceMi}, ${goal.targetTimeMinutes})
+      VALUES (NULL, ${goal.raceName || null}, ${goal.raceDateISO}, ${goal.distanceMi}, ${goal.targetTimeMinutes})
       RETURNING *
     `;
     

@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS goals (
   distance_mi DECIMAL(5,2) NOT NULL,
   target_time_minutes INTEGER NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  -- Removed UNIQUE(user_id) to allow NULL for single-user app
 );
 
 -- Strava connections table
@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS strava_connections (
   refresh_token TEXT,
   token_expires_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  -- Removed UNIQUE(user_id) to allow NULL for single-user app
 );
 
 -- Indexes for performance

@@ -45,12 +45,11 @@ export async function saveStravaConnection(
   },
   userId?: string
 ): Promise<StravaConnectionRow> {
-  // For now, use a default user_id or create one
+  // For now, use NULL user_id (single user app)
   // TODO: Add proper user authentication
-  const defaultUserId = userId || '00000000-0000-0000-0000-000000000000';
   
-  // Check if connection exists
-  const existing = await getStravaConnection(defaultUserId);
+  // Check if connection exists (by checking if any connection exists)
+  const existing = await getStravaConnection();
   
   if (existing) {
     // Update existing connection
@@ -72,10 +71,10 @@ export async function saveStravaConnection(
     
     return result;
   } else {
-    // Insert new connection
+    // Insert new connection with NULL user_id (single user app)
     const result = await queryOne<StravaConnectionRow>`
       INSERT INTO strava_connections (user_id, athlete_id, access_token, refresh_token, token_expires_at)
-      VALUES (${defaultUserId}, ${connection.athleteId}, ${connection.accessToken}, ${connection.refreshToken || null}, ${connection.tokenExpiresAt?.toISOString() || null})
+      VALUES (NULL, ${connection.athleteId}, ${connection.accessToken}, ${connection.refreshToken || null}, ${connection.tokenExpiresAt?.toISOString() || null})
       RETURNING *
     `;
     
@@ -91,9 +90,9 @@ export async function saveStravaConnection(
  * Delete Strava connection
  */
 export async function deleteStravaConnection(userId?: string): Promise<void> {
-  const defaultUserId = userId || '00000000-0000-0000-0000-000000000000';
+  // Delete the most recent connection (single user app)
   await query`
     DELETE FROM strava_connections 
-    WHERE user_id = ${defaultUserId}
+    WHERE id = (SELECT id FROM strava_connections ORDER BY updated_at DESC LIMIT 1)
   `;
 }
