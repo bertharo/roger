@@ -17,20 +17,21 @@ export async function GET(request: NextRequest) {
       try {
         const connection = await getStravaConnection(userId);
         if (connection && connection.access_token) {
-        // Check if token is expired
-        const isExpired = connection.token_expires_at 
-          ? new Date(connection.token_expires_at) < new Date()
-          : false;
-        
-        if (!isExpired) {
-          return Response.json({
-            connected: true,
-            message: 'Strava connected successfully.',
-          });
+          // Check if token is expired
+          const isExpired = connection.token_expires_at 
+            ? new Date(connection.token_expires_at) < new Date()
+            : false;
+          
+          if (!isExpired) {
+            return Response.json({
+              connected: true,
+              message: 'Strava connected successfully.',
+            });
+          }
         }
+      } catch (dbError) {
+        console.error('Database check failed, falling back to cookies:', dbError);
       }
-    } catch (dbError) {
-      console.error('Database check failed, falling back to cookies:', dbError);
     }
     
     // Fallback to cookies
