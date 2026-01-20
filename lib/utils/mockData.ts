@@ -138,14 +138,40 @@ export function transformPlanToCoreFormat(dashboardPlan: any): any {
     // Map dashboard runType back to core runType
     const coreRunType = runTypeMap[day.runType] || 'easy';
     
+    // Convert dayLabel to full day name, or derive from date
+    let dayOfWeek = 'Monday';
+    if (day.dateISO) {
+      try {
+        dayOfWeek = new Date(day.dateISO).toLocaleDateString('en-US', { weekday: 'long' });
+      } catch (e) {
+        // Fallback mapping if date parsing fails
+        const dayLabelMap: Record<string, string> = {
+          'Mon': 'Monday',
+          'Tue': 'Tuesday',
+          'Wed': 'Wednesday',
+          'Thu': 'Thursday',
+          'Fri': 'Friday',
+          'Sat': 'Saturday',
+          'Sun': 'Sunday',
+        };
+        dayOfWeek = dayLabelMap[day.dayLabel] || day.dayLabel || 'Monday';
+      }
+    } else if (day.dayLabel) {
+      const dayLabelMap: Record<string, string> = {
+        'Mon': 'Monday',
+        'Tue': 'Tuesday',
+        'Wed': 'Wednesday',
+        'Thu': 'Thursday',
+        'Fri': 'Friday',
+        'Sat': 'Saturday',
+        'Sun': 'Sunday',
+      };
+      dayOfWeek = dayLabelMap[day.dayLabel] || day.dayLabel;
+    }
+    
     return {
       date: day.dateISO,
-      dayOfWeek: day.dayLabel ? 
-        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].includes(day.dayLabel) ?
-          ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][
-            ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(day.dayLabel)
-          ] : day.dayLabel
-        : new Date(day.dateISO).toLocaleDateString('en-US', { weekday: 'long' }),
+      dayOfWeek,
       runType: coreRunType,
       distanceMiles: day.distanceMi || 0,
       paceRangeMinPerMile: day.paceRangeMinPerMi || [8.0, 9.0],
