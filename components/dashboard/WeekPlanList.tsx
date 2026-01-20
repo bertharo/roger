@@ -31,15 +31,7 @@ export function WeekPlanList({ plan, onDayClick, expandedIndex: controlledExpand
   };
 
   return (
-    <div>
-      {/* Section Header - minimal */}
-      <div className="pt-5 pb-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">This Week</h2>
-          <span className="text-xs text-gray-400">{plan.totalMilesPlanned} miles planned</span>
-        </div>
-      </div>
-
+    <div className="px-4">
       {/* Flat list - clean rows */}
       <div className="bg-white">
         {plan.days.map((day, index) => (
