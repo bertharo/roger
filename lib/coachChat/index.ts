@@ -1,9 +1,16 @@
 import OpenAI from 'openai';
 import { WeeklyPlan, Run, Goal, PlanModification, ChatMessage } from '../types';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+/**
+ * Get OpenAI client instance (lazy initialization)
+ */
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY environment variable is not set');
+  }
+  return new OpenAI({ apiKey });
+}
 
 export interface ChatContext {
   currentPlan: WeeklyPlan;
@@ -23,6 +30,7 @@ export async function generateCoachChatResponse(
   assistantMessage: string;
   planModifications?: PlanModification[];
 }> {
+  const openai = getOpenAIClient();
   const systemPrompt = buildSystemPrompt(context);
   const userPrompt = buildUserPrompt(userMessage, context);
   

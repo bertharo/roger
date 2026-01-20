@@ -3,9 +3,16 @@ import { CoachContext, CoachResponse } from '../types';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder';
 import { validateCoachResponse, validatePredictedTime } from './validator';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+/**
+ * Get OpenAI client instance (lazy initialization)
+ */
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY environment variable is not set');
+  }
+  return new OpenAI({ apiKey });
+}
 
 /**
  * Generate coach reply with structured output
@@ -13,6 +20,7 @@ const openai = new OpenAI({
 export async function generateCoachReply(
   context: CoachContext
 ): Promise<CoachResponse> {
+  const openai = getOpenAIClient();
   const systemPrompt = buildSystemPrompt();
   const userPrompt = buildUserPrompt(context);
   
