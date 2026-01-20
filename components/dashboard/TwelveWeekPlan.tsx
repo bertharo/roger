@@ -27,45 +27,50 @@ export function TwelveWeekPlan({
   // Find which week contains the race date
   const getRaceWeekIndex = (): number | null => {
     if (!goal?.raceDateISO) {
-      console.log('No goal or raceDateISO found');
       return null;
     }
     
-    const raceDate = new Date(goal.raceDateISO);
-    raceDate.setHours(0, 0, 0, 0);
-    
-    console.log('Looking for race week. Race date:', raceDate.toISOString());
-    
-    for (let i = 0; i < plans.length; i++) {
-      const weekStart = new Date(plans[i].weekStartISO);
-      weekStart.setHours(0, 0, 0, 0);
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekEnd.getDate() + 7);
+    try {
+      const raceDate = new Date(goal.raceDateISO);
+      raceDate.setHours(0, 0, 0, 0);
       
-      console.log(`Week ${i + 1}: ${weekStart.toISOString()} to ${weekEnd.toISOString()}`);
-      
-      // Check if race date falls within this week (inclusive start, exclusive end)
-      if (raceDate >= weekStart && raceDate < weekEnd) {
-        console.log(`Found race week: Week ${i + 1}`);
-        return i;
+      // The 12-week plan starts 12 weeks before race, so race should be in week 12 (index 11)
+      // But let's check all weeks to be safe
+      for (let i = 0; i < plans.length; i++) {
+        const weekStart = new Date(plans[i].weekStartISO);
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+        
+        // Check if race date falls within this week (inclusive start, inclusive end for last day)
+        // For the last week, include the end date
+        const isLastWeek = i === plans.length - 1;
+        if (isLastWeek) {
+          if (raceDate >= weekStart && raceDate <= weekEnd) {
+            return i;
+          }
+        } else {
+          if (raceDate >= weekStart && raceDate < weekEnd) {
+            return i;
+          }
+        }
       }
+      
+      // Fallback: if race date is very close to the end of the plan, assume it's week 12
+      const lastWeekStart = new Date(plans[plans.length - 1]?.weekStartISO);
+      lastWeekStart.setHours(0, 0, 0, 0);
+      const daysDiff = Math.ceil((raceDate.getTime() - lastWeekStart.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff >= 0 && daysDiff <= 14) {
+        return plans.length - 1; // Last week
+      }
+    } catch (error) {
+      console.error('Error detecting race week:', error);
     }
     
-    console.log('Race date not found in any week');
     return null;
   };
   
   const raceWeekIndex = getRaceWeekIndex();
-  
-  // Debug logging
-  if (goal) {
-    console.log('TwelveWeekPlan props:', {
-      hasGoal: !!goal,
-      raceDateISO: goal.raceDateISO,
-      raceWeekIndex,
-      plansCount: plans.length,
-    });
-  }
   
   const handleWeekClick = (index: number) => {
     const isLastWeek = index === plans.length - 1;
