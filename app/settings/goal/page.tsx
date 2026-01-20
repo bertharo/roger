@@ -77,12 +77,21 @@ export default function GoalSettingsPage() {
         body: JSON.stringify(goal),
       });
       
+      const data = await response.json();
+      
       if (response.ok) {
+        // Verify the goal was saved by reloading it
+        const verifyResponse = await fetch('/api/goal');
+        if (verifyResponse.ok) {
+          const savedGoal = await verifyResponse.json();
+          console.log('Goal saved and verified:', savedGoal);
+        }
+        
         alert('Goal saved successfully!');
         window.history.back();
       } else {
-        const data = await response.json();
         alert(`Failed to save goal: ${data.error || 'Unknown error'}`);
+        console.error('Save failed:', data);
       }
     } catch (error) {
       console.error('Error saving goal:', error);

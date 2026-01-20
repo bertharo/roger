@@ -13,6 +13,8 @@ export async function GET(request: NextRequest) {
     // For now, try to load from cookies or return default
     const cookieHeader = request.headers.get('cookie') || '';
     
+    console.log('Loading goal, cookies:', cookieHeader.substring(0, 100));
+    
     // Check if goal is stored in cookie (temporary solution)
     const goalCookie = cookieHeader
       .split(';')
@@ -20,13 +22,18 @@ export async function GET(request: NextRequest) {
     
     if (goalCookie) {
       try {
-        const goalJson = decodeURIComponent(goalCookie.split('=')[1]);
-        const goal = JSON.parse(goalJson);
+        // Extract the value after 'user_goal='
+        const cookieValue = goalCookie.split('=').slice(1).join('='); // Handle values with = in them
+        const goal = JSON.parse(cookieValue);
+        console.log('Loaded goal from cookie:', goal);
         return NextResponse.json(goal);
       } catch (e) {
+        console.error('Error parsing goal cookie:', e);
         // Invalid cookie, fall through to default
       }
     }
+    
+    console.log('No valid goal cookie found, returning default');
     
     // Return default/mock goal
     return NextResponse.json({
