@@ -44,3 +44,10 @@ export function getDayLabel(dateISO: string): string {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   return days[date.getDay()];
 }
+
+/**
+ * Format distance in miles to 1 decimal place
+ */
+export function formatDistance(miles: number): string {
+  return Math.round(miles * 10) / 10 + '';
+}
