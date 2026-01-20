@@ -71,38 +71,37 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Convert dashboard format to core format
-    const goal = {
-      raceDate: raceDateISO,
-      distance: distanceMi,
-      targetTimeMinutes,
-    };
-    
-    // TODO: Save to database
-    // For now, store in cookie (temporary solution)
-    const response = NextResponse.json({ success: true, goal });
-    
-    // Store goal in cookie (temporary until database is set up)
-    const goalCookie = JSON.stringify({
-      raceName,
-      raceDateISO,
-      distanceMi,
-      targetTimeMinutes,
-    });
-    
-    // Encode the cookie value to handle special characters
-    const encodedCookie = encodeURIComponent(goalCookie);
-    response.cookies.set('user_goal', encodedCookie, {
-      httpOnly: false, // Allow client-side access for now
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 365, // 1 year
-      path: '/',
-    });
-    
-    console.log('Goal cookie set:', { original: goalCookie, encoded: encodedCookie });
-    
-    return response;
+    // Try to save to database first
+    try {
+      const goalRow = await saveGoal({
+        raceName,
+        raceDateISO,
+        distanceMi,
+        targetTimeMinutes,
+      });
+      
+      return NextResponse.json({
+        success: true,
+        goal: {
+          raceDate: goalRow.race_date_iso,
+          distance: Number(goalRow.distance_mi),
+          targetTimeMinutes: goalRow.target_time_minutes,
+        },
+      });
+    } catch (dbError) {
+      console.error('Database save failed, falling back to localStorage:', dbError);
+      // Fallback: return success but don't save to DB
+      // Frontend will handle localStorage
+      return NextResponse.json({
+        success: true,
+        goal: {
+          raceDate: raceDateISO,
+          distance: distanceMi,
+          targetTimeMinutes,
+        },
+        warning: 'Database not available, using localStorage',
+      });
+    }
   } catch (error) {
     console.error('Error saving goal:', error);
     return NextResponse.json(
