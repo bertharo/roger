@@ -1,11 +1,10 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from './config';
+import { auth } from '@/lib/auth/config';
 
 /**
  * Get the current user session on the server
  */
 export async function getSession() {
-  return getServerSession(authOptions);
+  return auth();
 }
 
 /**

@@ -1,9 +1,9 @@
-import { NextAuthOptions } from 'next-auth';
+import NextAuth, { type NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { query, queryOne } from '@/lib/db/client';
 import bcrypt from 'bcryptjs';
 
-export const authOptions: NextAuthOptions = {
+export const authConfig: NextAuthConfig = {
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -16,6 +16,9 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        const email = credentials.email as string;
+        const password = credentials.password as string;
+
         try {
           // Find user by email
           const user = await queryOne<{
@@ -26,7 +29,7 @@ export const authOptions: NextAuthOptions = {
           }>`
             SELECT id, email, name, password_hash
             FROM users
-            WHERE email = ${credentials.email}
+            WHERE email = ${email}
           `;
 
           if (!user || !user.password_hash) {
@@ -34,7 +37,7 @@ export const authOptions: NextAuthOptions = {
           }
 
           // Verify password
-          const isValid = await bcrypt.compare(credentials.password, user.password_hash);
+          const isValid = await bcrypt.compare(password, user.password_hash);
           if (!isValid) {
             return null;
           }
@@ -53,7 +56,6 @@ export const authOptions: NextAuthOptions = {
   ],
   pages: {
     signIn: '/auth/signin',
-    signUp: '/auth/signup',
   },
   callbacks: {
     async jwt({ token, user }) {
@@ -72,5 +74,9 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
   },
-  secret: process.env.NEXTAUTH_SECRET,
 };
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
+  secret: process.env.NEXTAUTH_SECRET,
+});
