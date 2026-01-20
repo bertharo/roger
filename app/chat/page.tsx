@@ -24,6 +24,9 @@ export default function ChatPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [expandedDayIndex, setExpandedDayIndex] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [runs, setRuns] = useState<any[]>([]);
+  const [twelveWeekPlans, setTwelveWeekPlans] = useState<WeeklyPlan[]>([]);
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const initialize = async () => {
