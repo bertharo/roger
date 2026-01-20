@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getGoal, saveGoal } from '@/lib/db/goals';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,33 +10,39 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Load from database
-    // For now, try to load from cookies or return default
+    // Try to load from database first
+    try {
+      const goalRow = await getGoal();
+      if (goalRow) {
+        return NextResponse.json({
+          raceDate: goalRow.race_date_iso,
+          distance: Number(goalRow.distance_mi),
+          targetTimeMinutes: goalRow.target_time_minutes,
+        });
+      }
+    } catch (dbError) {
+      console.error('Database error, falling back to localStorage/cookies:', dbError);
+    }
+    
+    // Fallback to localStorage/cookies if database fails
     const cookieHeader = request.headers.get('cookie') || '';
-    
-    console.log('Loading goal, cookies:', cookieHeader.substring(0, 200));
-    
-    // Check if goal is stored in cookie (temporary solution)
     const goalCookieMatch = cookieHeader.match(/user_goal=([^;]+)/);
     
     if (goalCookieMatch && goalCookieMatch[1]) {
       try {
-        // Decode the cookie value (it's URL encoded when set)
         let cookieValue = goalCookieMatch[1];
-        // Replace + with space (URL encoding) and decode
         cookieValue = cookieValue.replace(/\+/g, ' ');
         cookieValue = decodeURIComponent(cookieValue);
-        
         const goal = JSON.parse(cookieValue);
-        console.log('Loaded goal from cookie:', goal);
-        return NextResponse.json(goal);
+        return NextResponse.json({
+          raceDate: goal.raceDateISO,
+          distance: goal.distanceMi,
+          targetTimeMinutes: goal.targetTimeMinutes,
+        });
       } catch (e) {
-        console.error('Error parsing goal cookie:', e, 'Cookie value:', goalCookieMatch[1]);
-        // Invalid cookie, fall through to default
+        // Invalid cookie
       }
     }
-    
-    console.log('No valid goal cookie found, returning default');
     
     // Return default/mock goal
     return NextResponse.json({

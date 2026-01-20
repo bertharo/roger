@@ -1,30 +1,41 @@
 import { NextRequest } from 'next/server';
+import { getStravaConnection } from '@/lib/db/strava';
 
 /**
  * Check Strava Connection Status
  * 
  * Returns whether the user has Strava connected.
- * Checks for stored tokens in cookies (temporary solution until database is set up).
+ * Checks database first, falls back to cookies.
  */
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Check database for stored Strava tokens
-    // Example:
-    // const user = await db.user.findUnique({
-    //   where: { id: session.userId },
-    //   select: { stravaAccessToken: true },
-    // });
+    // Try database first
+    try {
+      const connection = await getStravaConnection();
+      if (connection && connection.access_token) {
+        // Check if token is expired
+        const isExpired = connection.token_expires_at 
+          ? new Date(connection.token_expires_at) < new Date()
+          : false;
+        
+        if (!isExpired) {
+          return Response.json({
+            connected: true,
+            message: 'Strava connected successfully.',
+          });
+        }
+      }
+    } catch (dbError) {
+      console.error('Database check failed, falling back to cookies:', dbError);
+    }
     
-    // Temporary: Check for token in cookies
-    // In production, store tokens securely in database
+    // Fallback to cookies
     const cookieHeader = request.headers.get('cookie') || '';
     const stravaToken = cookieHeader.includes('strava_access_token=');
     
-    const connected = stravaToken;
-    
     return Response.json({
-      connected,
-      message: connected 
+      connected: stravaToken,
+      message: stravaToken 
         ? 'Strava connected successfully.' 
         : 'Using mock data. Connect Strava to sync real runs.',
     });

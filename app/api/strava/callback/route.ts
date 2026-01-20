@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { saveStravaConnection } from '@/lib/db/strava';
 
 /**
  * Strava OAuth Callback Endpoint
@@ -73,37 +74,46 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${baseUrl}/settings?error=invalid_token_response`);
     }
 
-    // TODO: Store tokens securely in your database
-    // Example:
-    // await db.user.update({
-    //   where: { id: session.userId },
-    //   data: {
-    //     stravaAccessToken: access_token,
-    //     stravaRefreshToken: refresh_token,
-    //     stravaAthleteId: athlete.id,
-    //   },
-    // });
-
-    // Temporary: Store token in cookie (until database is set up)
-    // In production, store tokens securely in database
-    const redirectResponse = NextResponse.redirect(`${baseUrl}/settings?connected=true`);
-    
-    // Set cookies with tokens (HttpOnly for security)
-    redirectResponse.cookies.set('strava_access_token', access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 days (Strava tokens expire, but this is temporary)
-    });
-    
-    if (refresh_token) {
-      redirectResponse.cookies.set('strava_refresh_token', refresh_token, {
+    // Try to save to database first
+    try {
+      // Calculate token expiration (Strava tokens typically expire in 6 hours)
+      const tokenExpiresAt = new Date();
+      tokenExpiresAt.setHours(tokenExpiresAt.getHours() + 6);
+      
+      await saveStravaConnection({
+        athleteId: athlete.id,
+        accessToken: access_token,
+        refreshToken: refresh_token,
+        tokenExpiresAt,
+      });
+      
+      console.log('Strava connection saved to database');
+    } catch (dbError) {
+      console.error('Database save failed, falling back to cookies:', dbError);
+      // Fallback to cookies if database fails
+      const redirectResponse = NextResponse.redirect(`${baseUrl}/settings?connected=true`);
+      
+      redirectResponse.cookies.set('strava_access_token', access_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 365, // 1 year
+        maxAge: 60 * 60 * 24 * 30,
       });
+      
+      if (refresh_token) {
+        redirectResponse.cookies.set('strava_refresh_token', refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 365,
+        });
+      }
+      
+      return redirectResponse;
     }
+
+    // Database save succeeded
+    const redirectResponse = NextResponse.redirect(`${baseUrl}/settings?connected=true`);
 
     // Log success
     console.log('Strava connected successfully:', {

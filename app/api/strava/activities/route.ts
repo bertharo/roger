@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getStravaConnection } from '@/lib/db/strava';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,20 +9,43 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Get access token from cookies
-    const cookieHeader = request.headers.get('cookie') || '';
-    const tokenCookie = cookieHeader
-      .split(';')
-      .find(c => c.trim().startsWith('strava_access_token='));
+    // Try to get token from database first
+    let accessToken: string | null = null;
     
-    if (!tokenCookie) {
+    try {
+      const connection = await getStravaConnection();
+      if (connection && connection.access_token) {
+        // Check if token is expired
+        const isExpired = connection.token_expires_at 
+          ? new Date(connection.token_expires_at) < new Date()
+          : false;
+        
+        if (!isExpired) {
+          accessToken = connection.access_token;
+        }
+      }
+    } catch (dbError) {
+      console.error('Database check failed, falling back to cookies:', dbError);
+    }
+    
+    // Fallback to cookies if database doesn't have token
+    if (!accessToken) {
+      const cookieHeader = request.headers.get('cookie') || '';
+      const tokenCookie = cookieHeader
+        .split(';')
+        .find(c => c.trim().startsWith('strava_access_token='));
+      
+      if (tokenCookie) {
+        accessToken = tokenCookie.split('=')[1].trim();
+      }
+    }
+    
+    if (!accessToken) {
       return NextResponse.json(
         { error: 'Not connected to Strava' },
         { status: 401 }
       );
     }
-    
-    const accessToken = tokenCookie.split('=')[1].trim();
     
     // Fetch recent activities from Strava
     const response = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
