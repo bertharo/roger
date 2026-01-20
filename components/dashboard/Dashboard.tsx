@@ -51,6 +51,7 @@ export function Dashboard({
   onWeekSelect,
 }: DashboardProps) {
   const [chatPlaceholder, setChatPlaceholder] = useState("Ask about your plan...");
+  const [showRaceDayView, setShowRaceDayView] = useState(false);
 
   useEffect(() => {
     if (expandedDayIndex !== null && expandedDayIndex !== undefined && plan) {
@@ -86,7 +87,9 @@ export function Dashboard({
         {twelveWeekPlans && twelveWeekPlans.length > 0 && (
           <TwelveWeekPlan
             plans={twelveWeekPlans}
+            goal={goal}
             onWeekSelect={onWeekSelect}
+            onRaceDayClick={() => setShowRaceDayView(true)}
             selectedWeekIndex={selectedWeekIndex}
           />
         )}
@@ -120,6 +123,14 @@ export function Dashboard({
           isLoading={chatLoading}
         />
       </div>
+      
+      {/* Race Day View Modal */}
+      {showRaceDayView && goal && (
+        <RaceDayView
+          goal={goal}
+          onClose={() => setShowRaceDayView(false)}
+        />
+      )}
     </div>
   );
 }
