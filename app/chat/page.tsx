@@ -6,6 +6,7 @@ import { WeeklyPlan, RecentRun, Goal } from '@/lib/types/dashboard';
 import { transformPlanToDashboardFormat, transformRecentRun, transformGoal } from '@/lib/utils/mockData';
 import { calculateStatusBarKPIs } from '@/lib/utils/statusBar';
 import { formatTime } from '@/lib/utils/formatting';
+import { castMockRuns } from '@/lib/utils/typeHelpers';
 import mockData from '@/data/stravaMock.json';
 
 export default function ChatPage() {
@@ -19,7 +20,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     const initialize = async () => {
-      const runs = mockData.runs;
+      const runs = castMockRuns(mockData.runs);
       const goalData = mockData.goal;
       
       const transformedGoal = transformGoal(goalData);
@@ -29,7 +30,7 @@ export default function ChatPage() {
       setEstimatedFinishTime(formatTime(kpis.predictedTimeMinutes));
       setConfidence(kpis.confidence);
       
-      const transformedRun = transformRecentRun(runs);
+      const transformedRun = transformRecentRun(mockData.runs);
       setRecentRun(transformedRun);
       
       await loadPlan();

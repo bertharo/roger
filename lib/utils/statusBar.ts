@@ -3,7 +3,7 @@ import { Goal, Run, StatusBarKPIs } from '../types';
 /**
  * Calculate status bar KPIs for the sticky header
  */
-export function calculateStatusBarKPIs(goal: Goal, recentRuns: Run[]): StatusBarKPIs {
+export function calculateStatusBarKPIs(goal: Goal, recentRuns: Run[]): StatusBarKPIs & { predictedTimeMinutes: number } {
   const raceDate = new Date(goal.raceDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -12,7 +12,7 @@ export function calculateStatusBarKPIs(goal: Goal, recentRuns: Run[]): StatusBar
   const daysToGoal = Math.max(0, Math.ceil((raceDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
   
   // Estimate finish time based on recent runs and goal
-  let estimatedTimeMinutes = goal.targetTimeMinutes;
+  let predictedTimeMinutes = goal.targetTimeMinutes;
   let confidence: 'low' | 'medium' | 'high' = 'medium';
   
   if (recentRuns.length >= 3) {
@@ -23,7 +23,7 @@ export function calculateStatusBarKPIs(goal: Goal, recentRuns: Run[]): StatusBar
     
     if (relevantRuns.length > 0) {
       const avgPace = relevantRuns.reduce((sum, r) => sum + r.averagePaceMinPerMile, 0) / relevantRuns.length;
-      estimatedTimeMinutes = avgPace * goal.distance;
+      predictedTimeMinutes = avgPace * goal.distance;
       confidence = relevantRuns.length >= 3 ? 'high' : 'medium';
     } else {
       confidence = 'low';
@@ -33,8 +33,8 @@ export function calculateStatusBarKPIs(goal: Goal, recentRuns: Run[]): StatusBar
   }
   
   // Format estimated time
-  const hours = Math.floor(estimatedTimeMinutes / 60);
-  const minutes = Math.round(estimatedTimeMinutes % 60);
+  const hours = Math.floor(predictedTimeMinutes / 60);
+  const minutes = Math.round(predictedTimeMinutes % 60);
   const estimatedFinishTime = hours > 0 
     ? `${hours}h ${minutes}m`
     : `${minutes}m`;
@@ -43,5 +43,6 @@ export function calculateStatusBarKPIs(goal: Goal, recentRuns: Run[]): StatusBar
     daysToGoal,
     estimatedFinishTime,
     confidence,
+    predictedTimeMinutes, // Include for backward compatibility
   };
 }

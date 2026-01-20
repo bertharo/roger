@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { generateWeeklyPlan } from '@/lib/planGenerator';
+import { castMockRuns } from '@/lib/utils/typeHelpers';
 import mockData from '@/data/stravaMock.json';
 
 export const runtime = 'nodejs';
@@ -9,7 +10,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const weekStart = searchParams.get('weekStart');
     
-    const runs = mockData.runs;
+    const runs = castMockRuns(mockData.runs);
     const goal = mockData.goal;
     
     // Get most recent 5 runs for pace inference

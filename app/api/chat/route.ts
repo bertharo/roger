@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { generateCoachChatResponse } from '@/lib/coachChat';
 import { generateWeeklyPlan } from '@/lib/planGenerator';
+import { castMockRuns } from '@/lib/utils/typeHelpers';
+import { WeeklyPlanDay } from '@/lib/types';
 import mockData from '@/data/stravaMock.json';
 
 export const runtime = 'nodejs';
@@ -10,7 +12,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { message, currentPlan, chatHistory } = body;
     
-    const runs = mockData.runs;
+    const runs = castMockRuns(mockData.runs);
     const goal = mockData.goal;
     
     // Get most recent 5 runs
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (response.planModifications && response.planModifications.length > 0) {
       modifiedPlan = {
         ...plan,
-        days: plan.days.map((day, idx) => {
+        days: plan.days.map((day: WeeklyPlanDay, idx: number) => {
           const mod = response.planModifications!.find(m => m.dayIndex === idx);
           if (mod) {
             return { ...day, ...mod.changes };
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
       };
       // Recalculate total miles
       modifiedPlan.totalMiles = Math.round(
-        modifiedPlan.days.reduce((sum, day) => sum + day.distanceMiles, 0) * 10
+        modifiedPlan.days.reduce((sum: number, day: WeeklyPlanDay) => sum + day.distanceMiles, 0) * 10
       ) / 10;
     }
     

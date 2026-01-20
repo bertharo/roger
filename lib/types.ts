@@ -54,3 +54,30 @@ export interface PlanModification {
   changes: Partial<WeeklyPlanDay>;
   reason: string;
 }
+
+// Legacy types for old coachEngine (kept for backward compatibility)
+export interface CoachContext {
+  goal: Goal;
+  runs: Run[];
+  userNotes?: string;
+}
+
+export interface RecommendedRun {
+  type: 'easy' | 'tempo' | 'interval' | 'long' | 'rest';
+  distanceMiles: number;
+  paceRangeMinPerMile: [number, number]; // [min, max]
+  notes: string;
+}
+
+export interface KPIs {
+  daysToGoal: number;
+  weeklyMiles7d: number;
+  predictedTimeMinutes: number;
+  confidence: 'low' | 'medium' | 'high';
+}
+
+export interface CoachResponse {
+  assistantMessage: string;
+  recommendedNextRun: RecommendedRun;
+  kpis: KPIs;
+}
