@@ -73,13 +73,18 @@ export function TwelveWeekPlan({
   const raceWeekIndex = getRaceWeekIndex();
   
   const handleWeekClick = (index: number) => {
+    console.log('Week clicked:', index, { onWeekSelect: !!onWeekSelect, onRaceDayClick: !!onRaceDayClick });
     const isLastWeek = index === plans.length - 1;
     const isRaceWeek = index === raceWeekIndex || (isLastWeek && !raceWeekIndex && goal);
     
     if (isRaceWeek && onRaceDayClick) {
+      console.log('Opening race day view');
       onRaceDayClick();
     } else if (onWeekSelect) {
+      console.log('Selecting week:', index, plans[index]);
       onWeekSelect(index, plans[index]);
+    } else {
+      console.warn('No onWeekSelect handler provided');
     }
   };
 
@@ -113,9 +118,13 @@ export function TwelveWeekPlan({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                console.log('Button clicked directly:', index);
                 handleWeekClick(index);
               }}
-              className={`w-full text-left p-3 rounded-lg transition-all duration-200 cursor-pointer ${
+              onMouseDown={(e) => {
+                console.log('Mouse down on week:', index);
+              }}
+              className={`w-full text-left p-3 rounded-lg transition-all duration-200 cursor-pointer relative z-10 ${
                 (isRaceWeek || (isLastWeek && !raceWeekIndex && goal))
                   ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 shadow-sm hover:shadow-md hover:scale-[1.02]'
                   : isSelected 
@@ -123,6 +132,7 @@ export function TwelveWeekPlan({
                     : 'hover:bg-gray-50 border border-transparent'
               }`}
               type="button"
+              style={{ pointerEvents: 'auto' }}
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">

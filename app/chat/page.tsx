@@ -132,6 +132,7 @@ export default function ChatPage() {
   };
   
   const handleWeekSelect = (weekIndex: number, weekPlan: WeeklyPlan) => {
+    console.log('handleWeekSelect called:', weekIndex, weekPlan);
     setSelectedWeekIndex(weekIndex);
     setPlan(weekPlan);
     setExpandedDayIndex(null);
