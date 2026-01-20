@@ -6,7 +6,10 @@ import { CoachSummary } from './CoachSummary';
 import { WeekPlanList } from './WeekPlanList';
 import { ChatBar } from './ChatBar';
 import { ChatMessages } from './ChatMessages';
+import { KPIs } from './KPIs';
+import { TwelveWeekPlan } from './TwelveWeekPlan';
 import { useState, useEffect } from 'react';
+import { Run } from '@/lib/types';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -25,6 +28,10 @@ interface DashboardProps {
   expandedDayIndex?: number | null;
   onDayExpand?: (index: number | null) => void;
   chatMessages?: ChatMessage[];
+  runs?: Run[];
+  twelveWeekPlans?: WeeklyPlan[];
+  selectedWeekIndex?: number | null;
+  onWeekSelect?: (weekIndex: number, plan: WeeklyPlan) => void;
 }
 
 export function Dashboard({
@@ -38,6 +45,10 @@ export function Dashboard({
   expandedDayIndex,
   onDayExpand,
   chatMessages = [],
+  runs = [],
+  twelveWeekPlans,
+  selectedWeekIndex,
+  onWeekSelect,
 }: DashboardProps) {
   const [chatPlaceholder, setChatPlaceholder] = useState("Ask about your plan...");
 
@@ -58,7 +69,8 @@ export function Dashboard({
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      <div className="px-4">
+      {/* Fixed Header Section */}
+      <div className="flex-shrink-0">
         <TopSummary
           goal={goal}
           estimatedFinishTime={estimatedFinishTime}
@@ -67,21 +79,47 @@ export function Dashboard({
         
         <CoachSummary recentRun={recentRun} plan={plan} />
         
-        {/* Chat Messages */}
-        {chatMessages.length > 0 && (
-          <ChatMessages messages={chatMessages} />
+        {/* KPIs */}
+        {runs.length > 0 && <KPIs runs={runs} />}
+        
+        {/* 12-Week Plan */}
+        {twelveWeekPlans && twelveWeekPlans.length > 0 && (
+          <TwelveWeekPlan
+            plans={twelveWeekPlans}
+            onWeekSelect={onWeekSelect}
+            selectedWeekIndex={selectedWeekIndex}
+          />
         )}
         
-        <div className="flex-1 overflow-y-auto pb-20">
-          <WeekPlanList plan={plan} onDayClick={handleDayClick} expandedIndex={expandedDayIndex} />
+        {/* Current Week Plan */}
+        <div className="px-4 pt-6 pb-3">
+          <h2 className="text-base font-semibold text-gray-900 mb-1">This Week</h2>
+          {plan && (
+            <p className="text-xs text-gray-500">{plan.totalMilesPlanned} miles planned</p>
+          )}
         </div>
       </div>
 
-      <ChatBar
-        placeholder={chatPlaceholder}
-        onSend={onChatSend}
-        isLoading={chatLoading}
-      />
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto">
+        <WeekPlanList plan={plan} onDayClick={handleDayClick} expandedIndex={expandedDayIndex} />
+      </div>
+
+      {/* Fixed Bottom Section - Chat */}
+      <div className="flex-shrink-0 border-t border-gray-100/50 bg-white">
+        {/* Chat Messages */}
+        {chatMessages.length > 0 && (
+          <div className="max-h-48 overflow-y-auto">
+            <ChatMessages messages={chatMessages} />
+          </div>
+        )}
+        
+        <ChatBar
+          placeholder={chatPlaceholder}
+          onSend={onChatSend}
+          isLoading={chatLoading}
+        />
+      </div>
     </div>
   );
 }

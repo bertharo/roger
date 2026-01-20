@@ -27,7 +27,20 @@ export default function ChatPage() {
 
   useEffect(() => {
     const initialize = async () => {
-      const runs = castMockRuns(mockData.runs);
+      // Try to load Strava data first, fallback to mock data
+      let runs = castMockRuns(mockData.runs);
+      try {
+        const stravaResponse = await fetch('/api/strava/activities');
+        if (stravaResponse.ok) {
+          const stravaData = await stravaResponse.json();
+          if (stravaData.runs && stravaData.runs.length > 0) {
+            runs = stravaData.runs;
+          }
+        }
+      } catch (error) {
+        console.error('Error loading Strava activities:', error);
+        // Use mock data as fallback
+      }
       
       // Load goal from API instead of mock data
       let goalData = mockData.goal; // Fallback to mock data
@@ -48,17 +61,28 @@ export default function ChatPage() {
       setEstimatedFinishTime(formatTime(kpis.predictedTimeMinutes));
       setConfidence(kpis.confidence);
       
-      const transformedRun = transformRecentRun(mockData.runs);
+      const transformedRun = transformRecentRun(runs);
       setRecentRun(transformedRun);
       
-      await loadPlan();
+      await loadPlan(runs, goalData);
     };
     initialize();
   }, []);
 
-  const loadPlan = async () => {
+  const loadPlan = async (runs?: any[], goalData?: any) => {
     try {
-      const response = await fetch('/api/plan');
+      // Pass runs data to plan API if available
+      const response = await fetch('/api/plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          runs: runs || castMockRuns(mockData.runs),
+          goal: goalData || mockData.goal,
+        }),
+      });
+      
       if (response.ok) {
         const planData = await response.json();
         const transformed = transformPlanToDashboardFormat(planData);
@@ -156,6 +180,10 @@ export default function ChatPage() {
         expandedDayIndex={expandedDayIndex}
         onDayExpand={setExpandedDayIndex}
         chatMessages={chatMessages}
+        runs={runs}
+        twelveWeekPlans={twelveWeekPlans}
+        selectedWeekIndex={selectedWeekIndex}
+        onWeekSelect={handleWeekSelect}
       />
     </div>
   );

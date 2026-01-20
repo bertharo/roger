@@ -6,6 +6,29 @@ import { transformPlanToCoreFormat } from '@/lib/utils/mockData';
 import { WeeklyPlanDay } from '@/lib/types';
 import mockData from '@/data/stravaMock.json';
 
+function inferRunType(activity: any): 'easy' | 'tempo' | 'interval' | 'long' | 'race' | 'recovery' {
+  const name = (activity.name || '').toLowerCase();
+  const distance = activity.distance / 1609.34; // miles
+  
+  if (name.includes('race') || name.includes('5k') || name.includes('10k') || name.includes('half') || name.includes('marathon')) {
+    return 'race';
+  }
+  if (name.includes('tempo') || name.includes('threshold')) {
+    return 'tempo';
+  }
+  if (name.includes('interval') || name.includes('track') || name.includes('speed')) {
+    return 'interval';
+  }
+  if (distance >= 10) {
+    return 'long';
+  }
+  if (name.includes('recovery') || name.includes('easy')) {
+    return 'recovery';
+  }
+  
+  return 'easy';
+}
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic'; // Force dynamic rendering
 
@@ -21,7 +44,46 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const runs = castMockRuns(mockData.runs);
+    // Try to load Strava data first, fallback to mock data
+    let runs = castMockRuns(mockData.runs);
+    try {
+      const cookieHeader = request.headers.get('cookie') || '';
+      const tokenCookie = cookieHeader
+        .split(';')
+        .find(c => c.trim().startsWith('strava_access_token='));
+      
+      if (tokenCookie) {
+        const accessToken = tokenCookie.split('=')[1].trim();
+        const stravaResponse = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        
+        if (stravaResponse.ok) {
+          const activities = await stravaResponse.json();
+          const runActivities = activities
+            .filter((a: any) => a.type === 'Run')
+            .map((a: any) => ({
+              id: String(a.id),
+              date: a.start_date,
+              distanceMiles: a.distance / 1609.34,
+              durationSeconds: a.moving_time || a.elapsed_time,
+              averagePaceMinPerMile: (a.moving_time || a.elapsed_time) / 60 / (a.distance / 1609.34),
+              type: inferRunType(a),
+              elevationFeet: a.total_elevation_gain ? a.total_elevation_gain * 3.28084 : undefined,
+              notes: a.name,
+            }));
+          
+          if (runActivities.length > 0) {
+            runs = runActivities;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error loading Strava data in chat:', e);
+      // Use mock data as fallback
+    }
     
     // Handle goal format conversion (dashboard format -> core format)
     let goal: any = mockData.goal;
