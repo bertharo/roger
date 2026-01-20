@@ -28,6 +28,7 @@ export function generateWeeklyPlan(
 
 /**
  * Generate weekly plan with specific pace profile
+ * Exported for use in 12-week plan generation
  */
 export function generateWeeklyPlanWithPaces(
   goal: Goal,

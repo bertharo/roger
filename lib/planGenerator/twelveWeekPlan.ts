@@ -1,5 +1,5 @@
 import { Goal, Run, WeeklyPlan } from '../types';
-import { generateWeeklyPlan } from './index';
+import { generateWeeklyPlan, generateWeeklyPlanWithPaces } from './index';
 import { inferPaceProfile } from './paceInference';
 
 /**
