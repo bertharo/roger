@@ -13,8 +13,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { message, currentPlan, chatHistory } = body;
     
+    if (!message || typeof message !== 'string') {
+      return Response.json(
+        { error: 'Message is required' },
+        { status: 400 }
+      );
+    }
+    
     const runs = castMockRuns(mockData.runs);
-    const goal = mockData.goal;
+    
+    // Handle goal format conversion (dashboard format -> core format)
+    let goal: any = mockData.goal;
+    if (body.goal) {
+      // If goal comes from frontend in dashboard format, convert it
+      if (body.goal.raceDateISO) {
+        goal = {
+          raceDate: body.goal.raceDateISO,
+          distance: body.goal.distanceMi,
+          targetTimeMinutes: body.goal.targetTimeMinutes,
+        };
+      } else {
+        goal = body.goal;
+      }
+    }
     
     // Get most recent 5 runs
     const sortedRuns = [...runs].sort(
@@ -29,6 +50,7 @@ export async function POST(request: NextRequest) {
       plan = transformPlanToCoreFormat(currentPlan);
       if (!plan) {
         // Fallback to generating if transformation fails
+        console.warn('Plan transformation failed, generating new plan');
         plan = generateWeeklyPlan(goal, recentRuns);
       }
     } else {
@@ -67,8 +89,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error in chat API:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return Response.json(
-      { error: 'Failed to generate coach response' },
+      { 
+        error: 'Failed to generate coach response',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+      },
       { status: 500 }
     );
   }
