@@ -39,14 +39,21 @@ export async function createUser(
   } catch (error: any) {
     // If name column doesn't exist (error code 42703), try without it
     if (error?.code === '42703' || (error?.message && error.message.includes('name'))) {
-      user = await queryOne<{ id: string; email: string; created_at: string }>`
+      const userWithoutName = await queryOne<{ id: string; email: string; created_at: string }>`
         INSERT INTO users (email, password_hash)
         VALUES (${email}, ${passwordHash})
         RETURNING id, email, created_at
       `;
       // Add name as null since column doesn't exist
-      if (user) {
-        user = { ...user, name: null } as User;
+      if (userWithoutName) {
+        user = {
+          id: userWithoutName.id,
+          email: userWithoutName.email,
+          name: null,
+          created_at: userWithoutName.created_at,
+        };
+      } else {
+        user = null;
       }
     } else {
       throw error;
