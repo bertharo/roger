@@ -11,7 +11,32 @@ export async function GET(request: NextRequest) {
     const weekStart = request.nextUrl.searchParams.get('weekStart');
     
     const runs = castMockRuns(mockData.runs);
-    const goal = mockData.goal;
+    
+    // Try to load goal from API, fallback to mock data
+    let goal = mockData.goal;
+    try {
+      const cookieHeader = request.headers.get('cookie') || '';
+      const goalCookie = cookieHeader
+        .split(';')
+        .find(c => c.trim().startsWith('user_goal='));
+      
+      if (goalCookie) {
+        try {
+          const goalJson = decodeURIComponent(goalCookie.split('=')[1]);
+          const savedGoal = JSON.parse(goalJson);
+          // Convert dashboard format to core format
+          goal = {
+            raceDate: savedGoal.raceDateISO,
+            distance: savedGoal.distanceMi,
+            targetTimeMinutes: savedGoal.targetTimeMinutes,
+          };
+        } catch (e) {
+          // Invalid cookie, use mock data
+        }
+      }
+    } catch (e) {
+      // Error loading goal, use mock data
+    }
     
     // Get most recent 5 runs for pace inference
     const sortedRuns = [...runs].sort(
