@@ -74,10 +74,12 @@ export function TwelveWeekPlan({
   
   const handleWeekClick = (index: number) => {
     const isLastWeek = index === plans.length - 1;
-    if ((index === raceWeekIndex || (isLastWeek && !raceWeekIndex && goal)) && onRaceDayClick) {
+    const isRaceWeek = index === raceWeekIndex || (isLastWeek && !raceWeekIndex && goal);
+    
+    if (isRaceWeek && onRaceDayClick) {
       onRaceDayClick();
-    } else {
-      onWeekSelect?.(index, plans[index]);
+    } else if (onWeekSelect) {
+      onWeekSelect(index, plans[index]);
     }
   };
 
@@ -108,14 +110,19 @@ export function TwelveWeekPlan({
           return (
             <button
               key={index}
-              onClick={() => handleWeekClick(index)}
-              className={`w-full text-left p-3 rounded-lg transition-all duration-200 ${
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleWeekClick(index);
+              }}
+              className={`w-full text-left p-3 rounded-lg transition-all duration-200 cursor-pointer ${
                 (isRaceWeek || (isLastWeek && !raceWeekIndex && goal))
                   ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 shadow-sm hover:shadow-md hover:scale-[1.02]'
                   : isSelected 
                     ? 'bg-gray-100 border border-gray-300' 
                     : 'hover:bg-gray-50 border border-transparent'
               }`}
+              type="button"
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
