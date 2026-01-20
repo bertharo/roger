@@ -88,12 +88,36 @@ export async function POST(request: NextRequest) {
       assistantMessage: response.assistantMessage,
       updatedPlan: modifiedPlan,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in chat API:', error);
+    
+    // Handle OpenAI quota/rate limit errors
+    if (error?.status === 429 || error?.code === 'insufficient_quota') {
+      return Response.json(
+        { 
+          error: 'OpenAI API quota exceeded. Please check your OpenAI account billing and plan.',
+          errorType: 'quota_exceeded',
+        },
+        { status: 429 }
+      );
+    }
+    
+    // Handle other OpenAI errors
+    if (error?.status) {
+      return Response.json(
+        { 
+          error: error.message || 'Failed to generate coach response',
+          errorType: 'api_error',
+        },
+        { status: error.status }
+      );
+    }
+    
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return Response.json(
       { 
         error: 'Failed to generate coach response',
+        errorType: 'unknown',
         details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
       },
       { status: 500 }

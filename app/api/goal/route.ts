@@ -1,0 +1,92 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+/**
+ * GET /api/goal - Get the current goal
+ * POST /api/goal - Save/update the goal
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // TODO: Load from database
+    // For now, try to load from cookies or return default
+    const cookieHeader = request.headers.get('cookie') || '';
+    
+    // Check if goal is stored in cookie (temporary solution)
+    const goalCookie = cookieHeader
+      .split(';')
+      .find(c => c.trim().startsWith('user_goal='));
+    
+    if (goalCookie) {
+      try {
+        const goalJson = decodeURIComponent(goalCookie.split('=')[1]);
+        const goal = JSON.parse(goalJson);
+        return NextResponse.json(goal);
+      } catch (e) {
+        // Invalid cookie, fall through to default
+      }
+    }
+    
+    // Return default/mock goal
+    return NextResponse.json({
+      raceDate: '2024-03-15T08:00:00Z',
+      distance: 13.1,
+      targetTimeMinutes: 95,
+    });
+  } catch (error) {
+    console.error('Error loading goal:', error);
+    return NextResponse.json(
+      { error: 'Failed to load goal' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { raceName, raceDateISO, distanceMi, targetTimeMinutes } = body;
+    
+    if (!raceDateISO || !distanceMi || !targetTimeMinutes) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+    
+    // Convert dashboard format to core format
+    const goal = {
+      raceDate: raceDateISO,
+      distance: distanceMi,
+      targetTimeMinutes,
+    };
+    
+    // TODO: Save to database
+    // For now, store in cookie (temporary solution)
+    const response = NextResponse.json({ success: true, goal });
+    
+    // Store goal in cookie (temporary until database is set up)
+    const goalCookie = JSON.stringify({
+      raceName,
+      raceDateISO,
+      distanceMi,
+      targetTimeMinutes,
+    });
+    
+    response.cookies.set('user_goal', encodeURIComponent(goalCookie), {
+      httpOnly: false, // Allow client-side access for now
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+    });
+    
+    return response;
+  } catch (error) {
+    console.error('Error saving goal:', error);
+    return NextResponse.json(
+      { error: 'Failed to save goal' },
+      { status: 500 }
+    );
+  }
+}

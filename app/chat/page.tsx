@@ -21,7 +21,18 @@ export default function ChatPage() {
   useEffect(() => {
     const initialize = async () => {
       const runs = castMockRuns(mockData.runs);
-      const goalData = mockData.goal;
+      
+      // Load goal from API instead of mock data
+      let goalData = mockData.goal; // Fallback to mock data
+      try {
+        const goalResponse = await fetch('/api/goal');
+        if (goalResponse.ok) {
+          goalData = await goalResponse.json();
+        }
+      } catch (error) {
+        console.error('Error loading goal:', error);
+        // Use mock data as fallback
+      }
       
       const transformedGoal = transformGoal(goalData);
       setGoal(transformedGoal);

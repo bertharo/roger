@@ -10,37 +10,83 @@ export default function GoalSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    // Load current goal from API or use default
+    // Load current goal from API
     loadGoal();
   }, []);
 
   const loadGoal = async () => {
+    setIsLoading(true);
     try {
-      // TODO: Load from API
-      // For now, use mock data structure
+      const response = await fetch('/api/goal');
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Transform core format to dashboard format
+        let raceName = '';
+        if (data.distance === 13.1) {
+          raceName = 'Half Marathon';
+        } else if (data.distance === 26.2) {
+          raceName = 'Marathon';
+        } else if (data.distance === 6.2) {
+          raceName = '10K';
+        } else if (data.distance === 3.1) {
+          raceName = '5K';
+        } else {
+          raceName = `${data.distance} mi race`;
+        }
+        
+        setGoal({
+          raceName,
+          raceDateISO: data.raceDate,
+          distanceMi: data.distance,
+          targetTimeMinutes: data.targetTimeMinutes,
+        });
+      } else {
+        // Use default if API fails
+        setGoal({
+          raceName: 'Half Marathon',
+          raceDateISO: '2024-03-15T08:00:00Z',
+          distanceMi: 13.1,
+          targetTimeMinutes: 95,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading goal:', error);
+      // Use default on error
       setGoal({
         raceName: 'Half Marathon',
         raceDateISO: '2024-03-15T08:00:00Z',
         distanceMi: 13.1,
         targetTimeMinutes: 95,
       });
-    } catch (error) {
-      console.error('Error loading goal:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSave = async () => {
+    if (!goal) return;
+    
     setIsSaving(true);
     try {
-      // TODO: Save to API
-      // await fetch('/api/goal', { method: 'POST', body: JSON.stringify(goal) });
+      const response = await fetch('/api/goal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(goal),
+      });
       
-      // For now, just show success
-      alert('Goal saved successfully!');
-      window.history.back();
+      if (response.ok) {
+        alert('Goal saved successfully!');
+        window.history.back();
+      } else {
+        const data = await response.json();
+        alert(`Failed to save goal: ${data.error || 'Unknown error'}`);
+      }
     } catch (error) {
       console.error('Error saving goal:', error);
-      alert('Failed to save goal');
+      alert('Failed to save goal. Please try again.');
     } finally {
       setIsSaving(false);
     }
