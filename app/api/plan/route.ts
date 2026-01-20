@@ -4,11 +4,11 @@ import { castMockRuns } from '@/lib/utils/typeHelpers';
 import mockData from '@/data/stravaMock.json';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic'; // Force dynamic rendering
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const weekStart = searchParams.get('weekStart');
+    const weekStart = request.nextUrl.searchParams.get('weekStart');
     
     const runs = castMockRuns(mockData.runs);
     const goal = mockData.goal;

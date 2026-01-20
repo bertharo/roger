@@ -8,9 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const code = searchParams.get('code');
-    const error = searchParams.get('error');
+    const code = request.nextUrl.searchParams.get('code');
+    const error = request.nextUrl.searchParams.get('error');
 
     // Get base URL for redirects
     const host = request.headers.get('host') || '';
