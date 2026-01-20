@@ -138,7 +138,7 @@ export default function ChatPage() {
     setExpandedDayIndex(null);
   };
 
-  const loadPlan = async (runs?: any[], goalData?: any) => {
+  const loadPlan = async (runs?: any[], goalData?: any, weekStart?: string) => {
     try {
       // Pass runs data to plan API if available
       const response = await fetch('/api/plan', {
@@ -149,12 +149,14 @@ export default function ChatPage() {
         body: JSON.stringify({
           runs: runs || castMockRuns(mockData.runs),
           goal: goalData || mockData.goal,
+          weekStart: weekStart, // Pass the week start date if provided
         }),
       });
       
       if (response.ok) {
         const planData = await response.json();
         const transformed = transformPlanToDashboardFormat(planData);
+        console.log('Plan loaded:', transformed);
         setPlan(transformed);
       }
     } catch (error) {
