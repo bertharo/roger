@@ -8,6 +8,7 @@ import { ChatBar } from './ChatBar';
 import { ChatMessages } from './ChatMessages';
 import { KPIs } from './KPIs';
 import { TwelveWeekPlan } from './TwelveWeekPlan';
+import { RaceDayView } from './RaceDayView';
 import { useState, useEffect } from 'react';
 import { Run } from '@/lib/types';
 
