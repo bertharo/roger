@@ -1,0 +1,103 @@
+{
+  "runs": [
+    {
+      "id": "1",
+      "date": "2024-01-15T06:00:00Z",
+      "distanceMiles": 3.1,
+      "durationSeconds": 1320,
+      "averagePaceMinPerMile": 7.1,
+      "type": "easy",
+      "elevationFeet": 120,
+      "notes": "Morning run, felt good"
+    },
+    {
+      "id": "2",
+      "date": "2024-01-17T18:30:00Z",
+      "distanceMiles": 5.0,
+      "durationSeconds": 2400,
+      "averagePaceMinPerMile": 8.0,
+      "type": "tempo",
+      "elevationFeet": 200,
+      "notes": "Tempo run, pushed hard"
+    },
+    {
+      "id": "3",
+      "date": "2024-01-19T06:15:00Z",
+      "distanceMiles": 4.0,
+      "durationSeconds": 1920,
+      "averagePaceMinPerMile": 8.0,
+      "type": "easy",
+      "elevationFeet": 150
+    },
+    {
+      "id": "4",
+      "date": "2024-01-21T07:00:00Z",
+      "distanceMiles": 8.0,
+      "durationSeconds": 4320,
+      "averagePaceMinPerMile": 9.0,
+      "type": "long",
+      "elevationFeet": 300,
+      "notes": "Long run, steady pace"
+    },
+    {
+      "id": "5",
+      "date": "2024-01-23T17:00:00Z",
+      "distanceMiles": 3.5,
+      "durationSeconds": 1680,
+      "averagePaceMinPerMile": 7.5,
+      "type": "interval",
+      "elevationFeet": 100,
+      "notes": "6x400m intervals"
+    },
+    {
+      "id": "6",
+      "date": "2024-01-25T06:30:00Z",
+      "distanceMiles": 4.5,
+      "durationSeconds": 2160,
+      "averagePaceMinPerMile": 8.2,
+      "type": "easy",
+      "elevationFeet": 180
+    },
+    {
+      "id": "7",
+      "date": "2024-01-27T08:00:00Z",
+      "distanceMiles": 6.0,
+      "durationSeconds": 2880,
+      "averagePaceMinPerMile": 8.5,
+      "type": "long",
+      "elevationFeet": 250
+    },
+    {
+      "id": "8",
+      "date": "2024-01-29T18:00:00Z",
+      "distanceMiles": 3.0,
+      "durationSeconds": 1440,
+      "averagePaceMinPerMile": 8.0,
+      "type": "recovery",
+      "elevationFeet": 90
+    },
+    {
+      "id": "9",
+      "date": "2024-01-31T06:00:00Z",
+      "distanceMiles": 5.5,
+      "durationSeconds": 2640,
+      "averagePaceMinPerMile": 7.8,
+      "type": "tempo",
+      "elevationFeet": 220
+    },
+    {
+      "id": "10",
+      "date": "2024-02-02T07:30:00Z",
+      "distanceMiles": 7.0,
+      "durationSeconds": 3780,
+      "averagePaceMinPerMile": 9.0,
+      "type": "long",
+      "elevationFeet": 280
+    }
+  ],
+  "goal": {
+    "raceDate": "2024-03-15T08:00:00Z",
+    "distance": 13.1,
+    "targetTimeMinutes": 95
+  }
+}
