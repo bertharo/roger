@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { generateCoachChatResponse } from '@/lib/coachChat';
 import { generateWeeklyPlan } from '@/lib/planGenerator';
 import { castMockRuns } from '@/lib/utils/typeHelpers';
+import { transformPlanToCoreFormat } from '@/lib/utils/mockData';
 import { WeeklyPlanDay } from '@/lib/types';
 import mockData from '@/data/stravaMock.json';
 
@@ -21,8 +22,18 @@ export async function POST(request: NextRequest) {
     );
     const recentRuns = sortedRuns.slice(0, 5);
     
-    // Use provided plan or generate new one
-    const plan = currentPlan || generateWeeklyPlan(goal, recentRuns);
+    // Transform dashboard format plan to core format if provided
+    // Otherwise generate new one
+    let plan;
+    if (currentPlan) {
+      plan = transformPlanToCoreFormat(currentPlan);
+      if (!plan) {
+        // Fallback to generating if transformation fails
+        plan = generateWeeklyPlan(goal, recentRuns);
+      }
+    } else {
+      plan = generateWeeklyPlan(goal, recentRuns);
+    }
     
     const response = await generateCoachChatResponse(message, {
       currentPlan: plan,

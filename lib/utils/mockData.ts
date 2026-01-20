@@ -120,3 +120,42 @@ export function transformGoal(goal: any): Goal | null {
     targetTimeMinutes: goal.targetTimeMinutes,
   };
 }
+
+/**
+ * Transform dashboard format plan back to core format
+ */
+export function transformPlanToCoreFormat(dashboardPlan: any): any {
+  if (!dashboardPlan || !dashboardPlan.days) return null;
+
+  const runTypeMap: Record<string, 'easy' | 'tempo' | 'interval' | 'long' | 'rest'> = {
+    easy: 'easy',
+    workout: 'tempo', // Default workout to tempo
+    long: 'long',
+    rest: 'rest',
+  };
+
+  const days = dashboardPlan.days.map((day: any) => {
+    // Map dashboard runType back to core runType
+    const coreRunType = runTypeMap[day.runType] || 'easy';
+    
+    return {
+      date: day.dateISO,
+      dayOfWeek: day.dayLabel ? 
+        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].includes(day.dayLabel) ?
+          ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][
+            ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(day.dayLabel)
+          ] : day.dayLabel
+        : new Date(day.dateISO).toLocaleDateString('en-US', { weekday: 'long' }),
+      runType: coreRunType,
+      distanceMiles: day.distanceMi || 0,
+      paceRangeMinPerMile: day.paceRangeMinPerMi || [8.0, 9.0],
+      coachingIntent: day.purpose || 'Build aerobic fitness.',
+    };
+  });
+
+  return {
+    weekStartDate: dashboardPlan.weekStartISO,
+    days,
+    totalMiles: dashboardPlan.totalMilesPlanned || 0,
+  };
+}
