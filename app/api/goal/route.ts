@@ -73,12 +73,15 @@ export async function POST(request: NextRequest) {
     
     // Try to save to database first
     try {
+      console.log('Attempting to save goal to database:', { raceName, raceDateISO, distanceMi, targetTimeMinutes });
       const goalRow = await saveGoal({
         raceName,
         raceDateISO,
         distanceMi,
         targetTimeMinutes,
       });
+      
+      console.log('Goal saved successfully to database:', goalRow);
       
       return NextResponse.json({
         success: true,
@@ -88,19 +91,27 @@ export async function POST(request: NextRequest) {
           targetTimeMinutes: goalRow.target_time_minutes,
         },
       });
-    } catch (dbError) {
-      console.error('Database save failed, falling back to localStorage:', dbError);
-      // Fallback: return success but don't save to DB
-      // Frontend will handle localStorage
-      return NextResponse.json({
-        success: true,
-        goal: {
-          raceDate: raceDateISO,
-          distance: distanceMi,
-          targetTimeMinutes,
-        },
-        warning: 'Database not available, using localStorage',
+    } catch (dbError: any) {
+      console.error('Database save failed:', {
+        error: dbError?.message,
+        stack: dbError?.stack,
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
       });
+      
+      // Return error so frontend knows database save failed
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Database save failed',
+          details: process.env.NODE_ENV === 'development' ? dbError?.message : undefined,
+          goal: {
+            raceDate: raceDateISO,
+            distance: distanceMi,
+            targetTimeMinutes,
+          },
+        },
+        { status: 500 }
+      );
     }
   } catch (error) {
     console.error('Error saving goal:', error);

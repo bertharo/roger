@@ -92,11 +92,7 @@ export default function GoalSettingsPage() {
     
     setIsSaving(true);
     try {
-      // Save to localStorage immediately (client-side)
-      localStorage.setItem('user_goal', JSON.stringify(goal));
-      console.log('Goal saved to localStorage');
-      
-      // Also save to server (for API access)
+      // Try to save to server first (database)
       const response = await fetch('/api/goal', {
         method: 'POST',
         headers: {
@@ -109,19 +105,25 @@ export default function GoalSettingsPage() {
       const data = await response.json();
       console.log('Save response:', data);
       
-      if (response.ok) {
+      if (response.ok && data.success) {
+        // Database save succeeded
+        // Also save to localStorage as backup
+        localStorage.setItem('user_goal', JSON.stringify(goal));
+        console.log('Goal saved to database and localStorage');
         alert('Goal saved successfully!');
         window.history.back();
       } else {
-        // Even if server save fails, localStorage has it
-        console.warn('Server save failed but localStorage saved:', data);
-        alert('Goal saved locally. Some features may not update until refresh.');
+        // Database save failed, fallback to localStorage
+        console.warn('Database save failed, using localStorage:', data);
+        localStorage.setItem('user_goal', JSON.stringify(goal));
+        alert(`Goal saved locally. ${data.error || 'Database unavailable'}. Please check your DATABASE_URL in Vercel.`);
         window.history.back();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving goal:', error);
-      // localStorage save should still work
-      alert('Goal saved locally. Please refresh the page to see changes.');
+      // Fallback to localStorage
+      localStorage.setItem('user_goal', JSON.stringify(goal));
+      alert('Goal saved locally. Please check your connection and DATABASE_URL configuration.');
       window.history.back();
     } finally {
       setIsSaving(false);

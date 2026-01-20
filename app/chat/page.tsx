@@ -45,34 +45,20 @@ export default function ChatPage() {
         // Use mock data as fallback
       }
       
-      // Load goal from localStorage first, then API, then mock data
+      // Load goal from API first (database), then localStorage, then mock data
       let goalData = mockData.goal; // Fallback to mock data
       
-      // Try localStorage first (fastest, most reliable)
+      // Try API first (database) - this is the source of truth
       try {
-        const savedGoal = localStorage.getItem('user_goal');
-        if (savedGoal) {
-          const parsed = JSON.parse(savedGoal);
-          // Convert dashboard format to core format
-          goalData = {
-            raceDate: parsed.raceDateISO,
-            distance: parsed.distanceMi,
-            targetTimeMinutes: parsed.targetTimeMinutes,
-          };
-        }
-      } catch (e) {
-        console.error('Error loading goal from localStorage:', e);
-      }
-      
-      // Fallback to API if localStorage didn't have it
-      if (goalData === mockData.goal) {
-        try {
-          const goalResponse = await fetch('/api/goal', {
-            credentials: 'include',
-          });
-          if (goalResponse.ok) {
-            goalData = await goalResponse.json();
-            // Also save to localStorage for next time
+        const goalResponse = await fetch('/api/goal', {
+          credentials: 'include',
+        });
+        if (goalResponse.ok) {
+          const apiGoal = await goalResponse.json();
+          // Check if we got a real goal (not default)
+          if (apiGoal.raceDate && apiGoal.raceDate !== '2024-03-15T08:00:00Z') {
+            goalData = apiGoal;
+            // Also save to localStorage for faster access next time
             try {
               const transformed = transformGoal(goalData);
               if (transformed) {
@@ -82,9 +68,26 @@ export default function ChatPage() {
               // Ignore localStorage errors
             }
           }
-        } catch (error) {
-          console.error('Error loading goal from API:', error);
-          // Use mock data as fallback
+        }
+      } catch (error) {
+        console.error('Error loading goal from API:', error);
+      }
+      
+      // Fallback to localStorage if API didn't return a real goal
+      if (goalData === mockData.goal) {
+        try {
+          const savedGoal = localStorage.getItem('user_goal');
+          if (savedGoal) {
+            const parsed = JSON.parse(savedGoal);
+            // Convert dashboard format to core format
+            goalData = {
+              raceDate: parsed.raceDateISO,
+              distance: parsed.distanceMi,
+              targetTimeMinutes: parsed.targetTimeMinutes,
+            };
+          }
+        } catch (e) {
+          console.error('Error loading goal from localStorage:', e);
         }
       }
       
