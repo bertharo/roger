@@ -29,6 +29,10 @@ export async function generateCoachChatResponse(
 ): Promise<{
   assistantMessage: string;
   planModifications?: PlanModification[];
+  tokenUsage?: {
+    inputTokens: number;
+    outputTokens: number;
+  };
 }> {
   const openai = getOpenAIClient();
   const systemPrompt = buildSystemPrompt(context);
@@ -55,17 +59,29 @@ export async function generateCoachChatResponse(
     throw new Error('No response from OpenAI');
   }
   
+  // Extract token usage
+  const inputTokens = completion.usage?.prompt_tokens || 0;
+  const outputTokens = completion.usage?.completion_tokens || 0;
+  
   try {
     const parsed = JSON.parse(content);
     
     return {
       assistantMessage: parsed.assistantMessage || 'I understand. Let me help you with that.',
       planModifications: parsed.planModifications || [],
+      tokenUsage: {
+        inputTokens,
+        outputTokens,
+      },
     };
   } catch (error) {
     // Fallback to natural language if JSON parsing fails
     return {
       assistantMessage: content,
+      tokenUsage: {
+        inputTokens,
+        outputTokens,
+      },
     };
   }
 }

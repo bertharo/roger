@@ -71,6 +71,39 @@ CREATE TABLE IF NOT EXISTS strava_connections (
   -- Removed UNIQUE(user_id) to allow NULL for single-user app
 );
 
+-- API usage tracking table
+CREATE TABLE IF NOT EXISTS api_usage (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  endpoint VARCHAR(255) NOT NULL,
+  tokens_used INTEGER,
+  estimated_cost_usd DECIMAL(10, 6),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Daily usage limits tracking (for rate limiting)
+CREATE TABLE IF NOT EXISTS daily_usage (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  chat_messages INTEGER DEFAULT 0,
+  plan_generations INTEGER DEFAULT 0,
+  total_cost_usd DECIMAL(10, 6) DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, date)
+);
+
+-- Global daily cost tracking
+CREATE TABLE IF NOT EXISTS daily_costs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE NOT NULL UNIQUE,
+  total_cost_usd DECIMAL(10, 6) DEFAULT 0,
+  total_requests INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id);
 CREATE INDEX IF NOT EXISTS idx_strava_connections_user_id ON strava_connections(user_id);
@@ -78,3 +111,7 @@ CREATE INDEX IF NOT EXISTS idx_strava_connections_athlete_id ON strava_connectio
 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_session_token ON sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_api_usage_user_id ON api_usage(user_id);
+CREATE INDEX IF NOT EXISTS idx_api_usage_created_at ON api_usage(created_at);
+CREATE INDEX IF NOT EXISTS idx_daily_usage_user_date ON daily_usage(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_daily_costs_date ON daily_costs(date);

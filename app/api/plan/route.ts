@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server';
 import { generateWeeklyPlan } from '@/lib/planGenerator';
 import { castMockRuns } from '@/lib/utils/typeHelpers';
 import { Run, Goal } from '@/lib/types';
+import { getUserId } from '@/lib/auth/getSession';
+import { checkPlanRateLimit, incrementPlanUsage } from '@/lib/rateLimit';
+import { checkGlobalCostLimit } from '@/lib/rateLimit';
 import mockData from '@/data/stravaMock.json';
 
 export const runtime = 'nodejs';
@@ -98,6 +101,41 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getUserId();
+    
+    if (!userId) {
+      return Response.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    // Check global cost limit (for consistency, even though plan generation doesn't use OpenAI)
+    const globalLimit = await checkGlobalCostLimit();
+    if (!globalLimit.allowed) {
+      return Response.json(
+        {
+          error: 'Service temporarily unavailable due to high demand. Please try again tomorrow.',
+          errorType: 'global_limit_exceeded',
+        },
+        { status: 503 }
+      );
+    }
+    
+    // Check user rate limit for plan generation
+    const rateLimit = await checkPlanRateLimit(userId);
+    if (!rateLimit.allowed) {
+      return Response.json(
+        {
+          error: `Daily limit reached. You've used ${rateLimit.limit} plan generations today. Your limit resets at ${rateLimit.resetAt.toLocaleTimeString()}.`,
+          errorType: 'rate_limit_exceeded',
+          remaining: rateLimit.remaining,
+          resetAt: rateLimit.resetAt.toISOString(),
+        },
+        { status: 429 }
+      );
+    }
+    
     const body = await request.json();
     const { runs: providedRuns, goal: providedGoal, weekStart } = body;
     

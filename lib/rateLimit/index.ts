@@ -1,0 +1,184 @@
+import { query, queryOne } from '@/lib/db/client';
+
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetAt: Date;
+  limit: number;
+}
+
+export interface DailyUsage {
+  chat_messages: number;
+  plan_generations: number;
+  total_cost_usd: number;
+}
+
+// Rate limits configuration
+export const RATE_LIMITS = {
+  CHAT_MESSAGES_PER_DAY: parseInt(process.env.CHAT_MESSAGES_PER_DAY || '30', 10),
+  PLAN_GENERATIONS_PER_DAY: parseInt(process.env.PLAN_GENERATIONS_PER_DAY || '5', 10),
+  DAILY_COST_LIMIT_USD: parseFloat(process.env.DAILY_COST_LIMIT_USD || '0.50'),
+  GLOBAL_DAILY_COST_LIMIT_USD: parseFloat(process.env.GLOBAL_DAILY_COST_LIMIT_USD || '10.00'),
+} as const;
+
+/**
+ * Check if user can make a chat request
+ */
+export async function checkChatRateLimit(
+  userId: string
+): Promise<RateLimitResult> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const usage = await getOrCreateDailyUsage(userId, today);
+  const remaining = RATE_LIMITS.CHAT_MESSAGES_PER_DAY - usage.chat_messages;
+  const resetAt = new Date(today);
+  resetAt.setDate(resetAt.getDate() + 1);
+  
+  return {
+    allowed: remaining > 0,
+    remaining: Math.max(0, remaining),
+    resetAt,
+    limit: RATE_LIMITS.CHAT_MESSAGES_PER_DAY,
+  };
+}
+
+/**
+ * Check if user can generate a plan
+ */
+export async function checkPlanRateLimit(
+  userId: string
+): Promise<RateLimitResult> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const usage = await getOrCreateDailyUsage(userId, today);
+  const remaining = RATE_LIMITS.PLAN_GENERATIONS_PER_DAY - usage.plan_generations;
+  const resetAt = new Date(today);
+  resetAt.setDate(resetAt.getDate() + 1);
+  
+  return {
+    allowed: remaining > 0,
+    remaining: Math.max(0, remaining),
+    resetAt,
+    limit: RATE_LIMITS.PLAN_GENERATIONS_PER_DAY,
+  };
+}
+
+/**
+ * Check global daily cost limit
+ */
+export async function checkGlobalCostLimit(): Promise<{
+  allowed: boolean;
+  currentCost: number;
+  limit: number;
+}> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dateStr = today.toISOString().split('T')[0];
+  
+  const dailyCost = await queryOne<{ total_cost_usd: number }>`
+    SELECT total_cost_usd
+    FROM daily_costs
+    WHERE date = ${dateStr}
+  `;
+  
+  const currentCost = dailyCost?.total_cost_usd || 0;
+  
+  return {
+    allowed: currentCost < RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
+    currentCost,
+    limit: RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
+  };
+}
+
+/**
+ * Get or create daily usage record
+ */
+async function getOrCreateDailyUsage(
+  userId: string,
+  date: Date
+): Promise<DailyUsage> {
+  const dateStr = date.toISOString().split('T')[0];
+  
+  let usage = await queryOne<DailyUsage>`
+    SELECT chat_messages, plan_generations, total_cost_usd
+    FROM daily_usage
+    WHERE user_id = ${userId} AND date = ${dateStr}
+  `;
+  
+  if (!usage) {
+    await query`
+      INSERT INTO daily_usage (user_id, date)
+      VALUES (${userId}, ${dateStr})
+      ON CONFLICT (user_id, date) DO NOTHING
+    `;
+    usage = {
+      chat_messages: 0,
+      plan_generations: 0,
+      total_cost_usd: 0,
+    };
+  }
+  
+  return usage;
+}
+
+/**
+ * Increment chat message count
+ */
+export async function incrementChatUsage(userId: string): Promise<void> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dateStr = today.toISOString().split('T')[0];
+  
+  await query`
+    INSERT INTO daily_usage (user_id, date, chat_messages)
+    VALUES (${userId}, ${dateStr}, 1)
+    ON CONFLICT (user_id, date)
+    DO UPDATE SET
+      chat_messages = daily_usage.chat_messages + 1,
+      updated_at = NOW()
+  `;
+}
+
+/**
+ * Increment plan generation count
+ */
+export async function incrementPlanUsage(userId: string): Promise<void> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dateStr = today.toISOString().split('T')[0];
+  
+  await query`
+    INSERT INTO daily_usage (user_id, date, plan_generations)
+    VALUES (${userId}, ${dateStr}, 1)
+    ON CONFLICT (user_id, date)
+    DO UPDATE SET
+      plan_generations = daily_usage.plan_generations + 1,
+      updated_at = NOW()
+  `;
+}
+
+/**
+ * Get user's daily usage
+ */
+export async function getUserDailyUsage(
+  userId: string
+): Promise<DailyUsage & { date: string }> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dateStr = today.toISOString().split('T')[0];
+  
+  const usage = await queryOne<DailyUsage & { date: string }>`
+    SELECT chat_messages, plan_generations, total_cost_usd, date
+    FROM daily_usage
+    WHERE user_id = ${userId} AND date = ${dateStr}
+  `;
+  
+  return usage || {
+    chat_messages: 0,
+    plan_generations: 0,
+    total_cost_usd: 0,
+    date: dateStr,
+  };
+}

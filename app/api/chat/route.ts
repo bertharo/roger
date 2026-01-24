@@ -4,6 +4,10 @@ import { generateWeeklyPlan } from '@/lib/planGenerator';
 import { castMockRuns } from '@/lib/utils/typeHelpers';
 import { transformPlanToCoreFormat } from '@/lib/utils/mockData';
 import { WeeklyPlanDay } from '@/lib/types';
+import { getUserId } from '@/lib/auth/getSession';
+import { checkChatRateLimit, incrementChatUsage } from '@/lib/rateLimit';
+import { trackUsage } from '@/lib/costTracking';
+import { checkGlobalCostLimit } from '@/lib/rateLimit';
 import mockData from '@/data/stravaMock.json';
 
 function inferRunType(activity: any): 'easy' | 'tempo' | 'interval' | 'long' | 'race' | 'recovery' {
@@ -34,8 +38,43 @@ export const dynamic = 'force-dynamic'; // Force dynamic rendering
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getUserId();
+    
+    if (!userId) {
+      return Response.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    // Check global cost limit
+    const globalLimit = await checkGlobalCostLimit();
+    if (!globalLimit.allowed) {
+      return Response.json(
+        {
+          error: 'Service temporarily unavailable due to high demand. Please try again tomorrow.',
+          errorType: 'global_limit_exceeded',
+        },
+        { status: 503 }
+      );
+    }
+    
+    // Check user rate limit
+    const rateLimit = await checkChatRateLimit(userId);
+    if (!rateLimit.allowed) {
+      return Response.json(
+        {
+          error: `Daily limit reached. You've used ${rateLimit.limit} messages today. Your limit resets at ${rateLimit.resetAt.toLocaleTimeString()}.`,
+          errorType: 'rate_limit_exceeded',
+          remaining: rateLimit.remaining,
+          resetAt: rateLimit.resetAt.toISOString(),
+        },
+        { status: 429 }
+      );
+    }
+    
     const body = await request.json();
-    const { message, currentPlan, chatHistory } = body;
+    const { message, currentPlan, chatHistory, runs, goal } = body;
     
     if (!message || typeof message !== 'string') {
       return Response.json(
@@ -127,6 +166,17 @@ export async function POST(request: NextRequest) {
       chatHistory: chatHistory || [],
     });
     
+    // Track usage and cost
+    if (response.tokenUsage) {
+      await trackUsage(
+        userId,
+        'chat',
+        response.tokenUsage.inputTokens,
+        response.tokenUsage.outputTokens
+      );
+    }
+    await incrementChatUsage(userId);
+    
     // Apply modifications to plan if any
     let modifiedPlan = plan;
     if (response.planModifications && response.planModifications.length > 0) {
@@ -146,9 +196,17 @@ export async function POST(request: NextRequest) {
       ) / 10;
     }
     
+    // Get updated rate limit info
+    const updatedRateLimit = await checkChatRateLimit(userId);
+    
     return Response.json({
       assistantMessage: response.assistantMessage,
       updatedPlan: modifiedPlan,
+      usage: {
+        remaining: updatedRateLimit.remaining,
+        limit: updatedRateLimit.limit,
+        resetAt: updatedRateLimit.resetAt.toISOString(),
+      },
     });
   } catch (error: any) {
     console.error('Error in chat API:', error);
