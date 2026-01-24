@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
     
     const body = await request.json();
-    const { message, currentPlan, chatHistory, runs, goal } = body;
+    const { message, currentPlan, chatHistory, runs: frontendRuns, goal: frontendGoal } = body;
     
     if (!message || typeof message !== 'string') {
       return Response.json(
@@ -83,59 +83,61 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Try to load Strava data first, fallback to mock data
-    let runs = castMockRuns(mockData.runs);
-    try {
-      const cookieHeader = request.headers.get('cookie') || '';
-      const tokenCookie = cookieHeader
-        .split(';')
-        .find(c => c.trim().startsWith('strava_access_token='));
-      
-      if (tokenCookie) {
-        const accessToken = tokenCookie.split('=')[1].trim();
-        const stravaResponse = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        });
+    // Use provided runs or try to load Strava data, fallback to mock data
+    let runs = frontendRuns || castMockRuns(mockData.runs);
+    if (!frontendRuns) {
+      try {
+        const cookieHeader = request.headers.get('cookie') || '';
+        const tokenCookie = cookieHeader
+          .split(';')
+          .find(c => c.trim().startsWith('strava_access_token='));
         
-        if (stravaResponse.ok) {
-          const activities = await stravaResponse.json();
-          const runActivities = activities
-            .filter((a: any) => a.type === 'Run')
-            .map((a: any) => ({
-              id: String(a.id),
-              date: a.start_date,
-              distanceMiles: a.distance / 1609.34,
-              durationSeconds: a.moving_time || a.elapsed_time,
-              averagePaceMinPerMile: (a.moving_time || a.elapsed_time) / 60 / (a.distance / 1609.34),
-              type: inferRunType(a),
-              elevationFeet: a.total_elevation_gain ? a.total_elevation_gain * 3.28084 : undefined,
-              notes: a.name,
-            }));
+        if (tokenCookie) {
+          const accessToken = tokenCookie.split('=')[1].trim();
+          const stravaResponse = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          });
           
-          if (runActivities.length > 0) {
-            runs = runActivities;
+          if (stravaResponse.ok) {
+            const activities = await stravaResponse.json();
+            const runActivities = activities
+              .filter((a: any) => a.type === 'Run')
+              .map((a: any) => ({
+                id: String(a.id),
+                date: a.start_date,
+                distanceMiles: a.distance / 1609.34,
+                durationSeconds: a.moving_time || a.elapsed_time,
+                averagePaceMinPerMile: (a.moving_time || a.elapsed_time) / 60 / (a.distance / 1609.34),
+                type: inferRunType(a),
+                elevationFeet: a.total_elevation_gain ? a.total_elevation_gain * 3.28084 : undefined,
+                notes: a.name,
+              }));
+            
+            if (runActivities.length > 0) {
+              runs = runActivities;
+            }
           }
         }
+      } catch (e) {
+        console.error('Error loading Strava data in chat:', e);
+        // Use mock data as fallback
       }
-    } catch (e) {
-      console.error('Error loading Strava data in chat:', e);
-      // Use mock data as fallback
     }
     
     // Handle goal format conversion (dashboard format -> core format)
     let goal: any = mockData.goal;
-    if (body.goal) {
+    if (frontendGoal) {
       // If goal comes from frontend in dashboard format, convert it
-      if (body.goal.raceDateISO) {
+      if (frontendGoal.raceDateISO) {
         goal = {
-          raceDate: body.goal.raceDateISO,
-          distance: body.goal.distanceMi,
-          targetTimeMinutes: body.goal.targetTimeMinutes,
+          raceDate: frontendGoal.raceDateISO,
+          distance: frontendGoal.distanceMi,
+          targetTimeMinutes: frontendGoal.targetTimeMinutes,
         };
       } else {
-        goal = body.goal;
+        goal = frontendGoal;
       }
     }
     
