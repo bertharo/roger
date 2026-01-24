@@ -218,7 +218,20 @@ export async function POST(request: NextRequest) {
     
     const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined);
     
-    return Response.json(plan);
+    // Track plan generation usage
+    await incrementPlanUsage(userId);
+    
+    // Get updated rate limit info
+    const updatedRateLimit = await checkPlanRateLimit(userId);
+    
+    return Response.json({
+      ...plan,
+      usage: {
+        remaining: updatedRateLimit.remaining,
+        limit: updatedRateLimit.limit,
+        resetAt: updatedRateLimit.resetAt.toISOString(),
+      },
+    });
   } catch (error) {
     console.error('Error generating plan:', error);
     return Response.json(
