@@ -6,6 +6,8 @@ import Link from 'next/link';
 export default function SettingsPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
 
   useEffect(() => {
     // Check for OAuth callback parameters first
@@ -59,12 +61,38 @@ export default function SettingsPage() {
       // TODO: Implement disconnect API call
       // await fetch('/api/strava/disconnect', { method: 'POST' });
       setIsConnected(false);
+      setLastSync(null);
       alert('Strava disconnected successfully');
     } catch (error) {
       console.error('Error disconnecting Strava:', error);
       alert('Failed to disconnect Strava');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRefreshStrava = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch('/api/strava/refresh', {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setLastSync(new Date());
+        alert('Strava data refreshed successfully!');
+        // Optionally reload the page to show new data
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(`Failed to refresh: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error refreshing Strava:', error);
+      alert('Failed to refresh Strava data');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -111,13 +139,42 @@ export default function SettingsPage() {
             </p>
             
             {isConnected ? (
-              <button
-                onClick={handleDisconnectStrava}
-                disabled={isLoading}
-                className="w-full py-2 px-4 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                Disconnect Strava
-              </button>
+              <div className="space-y-2">
+                {lastSync && (
+                  <div className="text-xs text-gray-500 text-center">
+                    Last synced: {lastSync.toLocaleTimeString()}
+                  </div>
+                )}
+                <button
+                  onClick={handleRefreshStrava}
+                  disabled={isRefreshing || isLoading}
+                  className="w-full py-2 px-4 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isRefreshing ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh from Strava
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleDisconnectStrava}
+                  disabled={isLoading || isRefreshing}
+                  className="w-full py-2 px-4 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  Disconnect Strava
+                </button>
+              </div>
             ) : (
               <button
                 onClick={handleConnectStrava}

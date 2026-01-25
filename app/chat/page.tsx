@@ -28,22 +28,27 @@ export default function ChatPage() {
   const [twelveWeekPlans, setTwelveWeekPlans] = useState<WeeklyPlan[]>([]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState<number | null>(null);
 
+  const loadStravaRuns = async () => {
+    let runs = castMockRuns(mockData.runs);
+    try {
+      const stravaResponse = await fetch('/api/strava/activities');
+      if (stravaResponse.ok) {
+        const stravaData = await stravaResponse.json();
+        if (stravaData.runs && stravaData.runs.length > 0) {
+          runs = stravaData.runs;
+        }
+      }
+    } catch (error) {
+      console.error('Error loading Strava activities:', error);
+      // Use mock data as fallback
+    }
+    return runs;
+  };
+
   useEffect(() => {
     const initialize = async () => {
       // Try to load Strava data first, fallback to mock data
-      let runs = castMockRuns(mockData.runs);
-      try {
-        const stravaResponse = await fetch('/api/strava/activities');
-        if (stravaResponse.ok) {
-          const stravaData = await stravaResponse.json();
-          if (stravaData.runs && stravaData.runs.length > 0) {
-            runs = stravaData.runs;
-          }
-        }
-      } catch (error) {
-        console.error('Error loading Strava activities:', error);
-        // Use mock data as fallback
-      }
+      const runs = await loadStravaRuns();
       
       // Load goal from API first (database), then localStorage, then mock data
       let goalData = mockData.goal; // Fallback to mock data
@@ -106,6 +111,34 @@ export default function ChatPage() {
       await loadTwelveWeekPlan(goalData, runs);
     };
     initialize();
+    
+    // Auto-refresh Strava data every 5 minutes
+    const refreshInterval = setInterval(async () => {
+      try {
+        const runs = await loadStravaRuns();
+        setRuns(runs);
+        const transformedRun = transformRecentRun(runs);
+        setRecentRun(transformedRun);
+        // Reload goal and plan with fresh data
+        let currentGoal = mockData.goal;
+        try {
+          const goalResponse = await fetch('/api/goal', { credentials: 'include' });
+          if (goalResponse.ok) {
+            const apiGoal = await goalResponse.json();
+            if (apiGoal.raceDate && apiGoal.raceDate !== '2024-03-15T08:00:00Z') {
+              currentGoal = apiGoal;
+            }
+          }
+        } catch (e) {
+          // Use fallback goal
+        }
+        await loadPlan(runs, currentGoal);
+      } catch (error) {
+        console.error('Error auto-refreshing Strava data:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => clearInterval(refreshInterval);
   }, []);
   
   const loadTwelveWeekPlan = async (goalData: any, runsData: any[]) => {

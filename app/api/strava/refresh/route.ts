@@ -1,70 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStravaConnection } from '@/lib/db/strava';
 import { getUserId } from '@/lib/auth/getSession';
-import { getValidAccessToken } from '@/lib/strava/refresh';
+import { getValidAccessToken, refreshStravaToken } from '@/lib/strava/refresh';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/strava/activities - Fetch recent activities from Strava
+ * POST /api/strava/refresh - Manually refresh Strava token and fetch new activities
  */
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const userId = await getUserId();
     
     if (!userId) {
       return NextResponse.json(
-        { error: 'Authentication required. Please sign in to view your Strava activities.' },
+        { error: 'Authentication required' },
         { status: 401 }
       );
     }
     
-    // Try to get valid token from database (with auto-refresh)
-    let accessToken: string | null = null;
+    // Force refresh the token
+    const refreshed = await refreshStravaToken(userId);
     
-    try {
-      // This will automatically refresh the token if it's expired
-      accessToken = await getValidAccessToken(userId);
-    } catch (dbError) {
-      console.error('Database check failed, falling back to cookies:', dbError);
-    }
-    
-    // Fallback to cookies if database doesn't have token
-    if (!accessToken) {
-      const cookieHeader = request.headers.get('cookie') || '';
-      const tokenCookie = cookieHeader
-        .split(';')
-        .find(c => c.trim().startsWith('strava_access_token='));
-      
-      if (tokenCookie) {
-        accessToken = tokenCookie.split('=')[1].trim();
-      }
-    }
-    
-    if (!accessToken) {
+    if (!refreshed) {
       return NextResponse.json(
-        { error: 'Not connected to Strava. Please reconnect in settings.' },
+        { error: 'Failed to refresh token. Please reconnect Strava in settings.' },
         { status: 401 }
       );
     }
     
-    // Fetch recent activities from Strava
+    // Fetch new activities with refreshed token
     const response = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${refreshed.accessToken}`,
       },
     });
     
     if (!response.ok) {
-      if (response.status === 401) {
-        // Token expired, need to refresh
-        return NextResponse.json(
-          { error: 'Strava token expired. Please reconnect.' },
-          { status: 401 }
-        );
-      }
-      throw new Error(`Strava API error: ${response.status}`);
+      return NextResponse.json(
+        { error: 'Failed to fetch activities from Strava' },
+        { status: response.status }
+      );
     }
     
     const activities = await response.json();
@@ -75,21 +51,26 @@ export async function GET(request: NextRequest) {
       .map((activity: any) => ({
         id: String(activity.id),
         date: activity.start_date,
-        distanceMiles: activity.distance / 1609.34, // Convert meters to miles
+        distanceMiles: activity.distance / 1609.34,
         durationSeconds: activity.moving_time || activity.elapsed_time,
         averagePaceMinPerMile: (activity.moving_time || activity.elapsed_time) / 60 / (activity.distance / 1609.34),
         type: inferRunType(activity),
-        elevationFeet: activity.total_elevation_gain ? activity.total_elevation_gain * 3.28084 : undefined, // Convert meters to feet
+        elevationFeet: activity.total_elevation_gain ? activity.total_elevation_gain * 3.28084 : undefined,
         notes: activity.name,
         effort: activity.perceived_exertion || undefined,
       }))
-      .slice(0, 30); // Get most recent 30 runs
+      .slice(0, 30);
     
-    return NextResponse.json({ runs });
+    return NextResponse.json({
+      success: true,
+      runs,
+      refreshed: true,
+      message: 'Strava data refreshed successfully',
+    });
   } catch (error) {
-    console.error('Error fetching Strava activities:', error);
+    console.error('Error refreshing Strava data:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch Strava activities' },
+      { error: 'Failed to refresh Strava data' },
       { status: 500 }
     );
   }
@@ -115,6 +96,5 @@ function inferRunType(activity: any): 'easy' | 'tempo' | 'interval' | 'long' | '
     return 'recovery';
   }
   
-  // Default to easy
   return 'easy';
 }
