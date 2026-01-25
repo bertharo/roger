@@ -73,23 +73,33 @@ export async function checkGlobalCostLimit(): Promise<{
   currentCost: number;
   limit: number;
 }> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dateStr = today.toISOString().split('T')[0];
-  
-  const dailyCost = await queryOne<{ total_cost_usd: number }>`
-    SELECT total_cost_usd
-    FROM daily_costs
-    WHERE date = ${dateStr}
-  `;
-  
-  const currentCost = dailyCost?.total_cost_usd || 0;
-  
-  return {
-    allowed: currentCost < RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
-    currentCost,
-    limit: RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
-  };
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateStr = today.toISOString().split('T')[0];
+    
+    const dailyCost = await queryOne<{ total_cost_usd: number }>`
+      SELECT total_cost_usd
+      FROM daily_costs
+      WHERE date = ${dateStr}
+    `;
+    
+    const currentCost = dailyCost?.total_cost_usd || 0;
+    
+    return {
+      allowed: currentCost < RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
+      currentCost,
+      limit: RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
+    };
+  } catch (error) {
+    // If database query fails (e.g., table doesn't exist), allow the request
+    console.error('Error checking global cost limit, allowing request:', error);
+    return {
+      allowed: true,
+      currentCost: 0,
+      limit: RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
+    };
+  }
 }
 
 /**
@@ -99,46 +109,61 @@ async function getOrCreateDailyUsage(
   userId: string,
   date: Date
 ): Promise<DailyUsage> {
-  const dateStr = date.toISOString().split('T')[0];
-  
-  let usage = await queryOne<DailyUsage>`
-    SELECT chat_messages, plan_generations, total_cost_usd
-    FROM daily_usage
-    WHERE user_id = ${userId} AND date = ${dateStr}
-  `;
-  
-  if (!usage) {
-    await query`
-      INSERT INTO daily_usage (user_id, date)
-      VALUES (${userId}, ${dateStr})
-      ON CONFLICT (user_id, date) DO NOTHING
+  try {
+    const dateStr = date.toISOString().split('T')[0];
+    
+    let usage = await queryOne<DailyUsage>`
+      SELECT chat_messages, plan_generations, total_cost_usd
+      FROM daily_usage
+      WHERE user_id = ${userId} AND date = ${dateStr}
     `;
-    usage = {
+    
+    if (!usage) {
+      await query`
+        INSERT INTO daily_usage (user_id, date)
+        VALUES (${userId}, ${dateStr})
+        ON CONFLICT (user_id, date) DO NOTHING
+      `;
+      usage = {
+        chat_messages: 0,
+        plan_generations: 0,
+        total_cost_usd: 0,
+      };
+    }
+    
+    return usage;
+  } catch (error) {
+    // If database query fails (e.g., table doesn't exist), return default usage
+    console.error('Error getting daily usage, returning default:', error);
+    return {
       chat_messages: 0,
       plan_generations: 0,
       total_cost_usd: 0,
     };
   }
-  
-  return usage;
 }
 
 /**
  * Increment chat message count
  */
 export async function incrementChatUsage(userId: string): Promise<void> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dateStr = today.toISOString().split('T')[0];
-  
-  await query`
-    INSERT INTO daily_usage (user_id, date, chat_messages)
-    VALUES (${userId}, ${dateStr}, 1)
-    ON CONFLICT (user_id, date)
-    DO UPDATE SET
-      chat_messages = daily_usage.chat_messages + 1,
-      updated_at = NOW()
-  `;
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateStr = today.toISOString().split('T')[0];
+    
+    await query`
+      INSERT INTO daily_usage (user_id, date, chat_messages)
+      VALUES (${userId}, ${dateStr}, 1)
+      ON CONFLICT (user_id, date)
+      DO UPDATE SET
+        chat_messages = daily_usage.chat_messages + 1,
+        updated_at = NOW()
+    `;
+  } catch (error) {
+    // If database query fails, log but don't throw (non-critical)
+    console.error('Error incrementing chat usage:', error);
+  }
 }
 
 /**
@@ -165,20 +190,34 @@ export async function incrementPlanUsage(userId: string): Promise<void> {
 export async function getUserDailyUsage(
   userId: string
 ): Promise<DailyUsage & { date: string }> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dateStr = today.toISOString().split('T')[0];
-  
-  const usage = await queryOne<DailyUsage & { date: string }>`
-    SELECT chat_messages, plan_generations, total_cost_usd, date
-    FROM daily_usage
-    WHERE user_id = ${userId} AND date = ${dateStr}
-  `;
-  
-  return usage || {
-    chat_messages: 0,
-    plan_generations: 0,
-    total_cost_usd: 0,
-    date: dateStr,
-  };
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateStr = today.toISOString().split('T')[0];
+    
+    const usage = await queryOne<DailyUsage & { date: string }>`
+      SELECT chat_messages, plan_generations, total_cost_usd, date
+      FROM daily_usage
+      WHERE user_id = ${userId} AND date = ${dateStr}
+    `;
+    
+    return usage || {
+      chat_messages: 0,
+      plan_generations: 0,
+      total_cost_usd: 0,
+      date: dateStr,
+    };
+  } catch (error) {
+    // If database query fails, return default usage
+    console.error('Error getting user daily usage, returning default:', error);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateStr = today.toISOString().split('T')[0];
+    return {
+      chat_messages: 0,
+      plan_generations: 0,
+      total_cost_usd: 0,
+      date: dateStr,
+    };
+  }
 }

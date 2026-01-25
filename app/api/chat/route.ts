@@ -177,16 +177,16 @@ export async function POST(request: NextRequest) {
       chatHistory: chatHistory || [],
     });
     
-    // Track usage and cost
+    // Track usage and cost (non-blocking - errors are handled internally)
     if (response.tokenUsage) {
       await trackUsage(
         userId,
         'chat',
         response.tokenUsage.inputTokens,
         response.tokenUsage.outputTokens
-      );
+      ).catch(err => console.error('Failed to track usage (non-critical):', err));
     }
-    await incrementChatUsage(userId);
+    await incrementChatUsage(userId).catch(err => console.error('Failed to increment usage (non-critical):', err));
     
     // Apply modifications to plan if any
     let modifiedPlan = plan;
@@ -207,8 +207,14 @@ export async function POST(request: NextRequest) {
       ) / 10;
     }
     
-    // Get updated rate limit info
-    const updatedRateLimit = await checkChatRateLimit(userId);
+    // Get updated rate limit info (with error handling)
+    let updatedRateLimit;
+    try {
+      updatedRateLimit = await checkChatRateLimit(userId);
+    } catch (error) {
+      console.error('Error getting updated rate limit, using previous:', error);
+      updatedRateLimit = rateLimit; // Fallback to previous rate limit
+    }
     
     return Response.json({
       assistantMessage: response.assistantMessage,
