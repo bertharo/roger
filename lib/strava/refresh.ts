@@ -57,7 +57,7 @@ export async function refreshStravaToken(userId: string): Promise<{
     // Calculate expiration date
     const expiresAt = new Date(tokenData.expires_at * 1000);
     
-    // Save refreshed tokens
+    // Save refreshed tokens (this updates updated_at timestamp)
     await saveStravaConnection(
       {
         athleteId: connection.athlete_id,
@@ -67,6 +67,8 @@ export async function refreshStravaToken(userId: string): Promise<{
       },
       userId
     );
+    
+    // Note: updated_at is automatically set by the database, which serves as last sync time
     
     return {
       accessToken: tokenData.access_token,

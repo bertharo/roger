@@ -27,7 +27,20 @@ export default function SignInPage() {
       if (result?.error) {
         setError('Invalid email or password');
       } else if (result?.ok) {
-        router.push('/chat');
+        // Check if there's a pending Strava OAuth to complete
+        const params = new URLSearchParams(window.location.search);
+        const stravaOAuth = params.get('strava_oauth');
+        const state = params.get('state');
+        const callbackUrl = params.get('callbackUrl');
+        
+        if (stravaOAuth === 'pending' && state) {
+          // Redirect to complete Strava connection
+          router.push(`/api/strava/complete?state=${state}`);
+        } else if (callbackUrl) {
+          router.push(callbackUrl);
+        } else {
+          router.push('/chat');
+        }
         router.refresh();
       }
     } catch (error) {

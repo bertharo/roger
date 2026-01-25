@@ -11,8 +11,11 @@ import { TwelveWeekPlan } from './TwelveWeekPlan';
 import { RaceDayView } from './RaceDayView';
 import { UsageIndicator } from './UsageIndicator';
 import { WeekComparison } from './WeekComparison';
+import { OnboardingBanner } from '@/components/onboarding/OnboardingBanner';
+import { DataSourceIndicator } from './DataSourceIndicator';
 import { useState, useEffect } from 'react';
 import { Run } from '@/lib/types';
+import { getMondayOfWeek, getSundayOfWeek } from '@/lib/utils/weekHelpers';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -56,6 +59,8 @@ export function Dashboard({
   const [chatPlaceholder, setChatPlaceholder] = useState("Ask about your plan...");
   const [showRaceDayView, setShowRaceDayView] = useState(false);
   const [showWeekComparison, setShowWeekComparison] = useState(false);
+  const [isStravaConnected, setIsStravaConnected] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   useEffect(() => {
     if (expandedDayIndex !== null && expandedDayIndex !== undefined && plan) {
@@ -67,6 +72,29 @@ export function Dashboard({
       setChatPlaceholder("Ask about your plan...");
     }
   }, [expandedDayIndex, plan]);
+
+  useEffect(() => {
+    // Check Strava connection status
+    const checkStravaStatus = async () => {
+      try {
+        const response = await fetch('/api/strava/status');
+        if (response.ok) {
+          const data = await response.json();
+          setIsStravaConnected(data.connected || false);
+          if (data.lastSync) {
+            setLastSyncTime(new Date(data.lastSync));
+          }
+        }
+      } catch (error) {
+        console.error('Error checking Strava status:', error);
+      }
+    };
+    
+    checkStravaStatus();
+    // Check every 30 seconds
+    const interval = setInterval(checkStravaStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleDayClick = (index: number | null) => {
     onDayExpand?.(index);
@@ -80,6 +108,18 @@ export function Dashboard({
           goal={goal}
           estimatedFinishTime={estimatedFinishTime}
           confidence={confidence}
+        />
+        
+        {/* Onboarding Banner */}
+        <OnboardingBanner 
+          goal={goal}
+          isStravaConnected={isStravaConnected}
+        />
+        
+        {/* Data Source Indicator */}
+        <DataSourceIndicator 
+          isStravaConnected={isStravaConnected}
+          lastSyncTime={lastSyncTime}
         />
         
         <CoachSummary recentRun={recentRun} plan={plan} />
@@ -124,7 +164,47 @@ export function Dashboard({
             </div>
           </div>
           {plan && (
-            <p className="text-xs text-gray-500">{plan.totalMilesPlanned} miles planned</p>
+            <div className="flex items-center gap-4 mt-1">
+              <p className="text-xs text-gray-500">
+                <span className="font-medium text-gray-900">{plan.totalMilesPlanned.toFixed(1)}</span> miles planned
+              </p>
+              {runs.length > 0 && (() => {
+                // Calculate actual miles for current week (Monday-Sunday)
+                const today = new Date();
+                const mondayOfThisWeek = getMondayOfWeek(today);
+                const sundayOfThisWeek = getSundayOfWeek(today);
+                const weekStart = new Date(plan.weekStartISO);
+                weekStart.setHours(0, 0, 0, 0);
+                
+                // Check if this plan is for the current week
+                const isCurrentWeek = weekStart.getTime() === mondayOfThisWeek.getTime();
+                
+                if (isCurrentWeek) {
+                  const currentWeekRuns = runs.filter(run => {
+                    const runDate = new Date(run.date);
+                    runDate.setHours(0, 0, 0, 0);
+                    return runDate >= mondayOfThisWeek && runDate <= sundayOfThisWeek;
+                  });
+                  const actualMiles = currentWeekRuns.reduce((sum, run) => sum + run.distanceMiles, 0);
+                  const difference = actualMiles - plan.totalMilesPlanned;
+                  
+                  return (
+                    <p className="text-xs">
+                      <span className={`font-medium ${difference >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                        {actualMiles.toFixed(1)}
+                      </span>
+                      {' '}miles actual
+                      {difference !== 0 && (
+                        <span className={`ml-1 ${difference >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                          ({difference >= 0 ? '+' : ''}{difference.toFixed(1)})
+                        </span>
+                      )}
+                    </p>
+                  );
+                }
+                return null;
+              })()}
+            </div>
           )}
         </div>
       </div>

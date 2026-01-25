@@ -1,4 +1,6 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { storeOAuthState } from '@/lib/db/oauthState';
+import crypto from 'crypto';
 
 /**
  * Strava OAuth Connect Endpoint
@@ -29,14 +31,35 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Generate state token for OAuth flow
+  const stateToken = crypto.randomUUID();
+  
+  // Store state in database (for handling expired sessions)
+  try {
+    await storeOAuthState(stateToken);
+  } catch (error) {
+    console.error('Failed to store OAuth state, continuing anyway:', error);
+  }
+
   // Strava OAuth authorization URL
   const authUrl = `https://www.strava.com/oauth/authorize?` +
     `client_id=${clientId}&` +
     `response_type=code&` +
     `redirect_uri=${encodeURIComponent(redirectUri)}&` +
     `scope=activity:read_all&` +
-    `approval_prompt=force`;
+    `approval_prompt=force&` +
+    `state=${stateToken}`;
 
-  // Redirect user to Strava
-  return Response.redirect(authUrl);
+  // Redirect user to Strava with state token
+  const response = NextResponse.redirect(authUrl);
+  
+  // Also store in cookie as backup
+  response.cookies.set('strava_oauth_state', stateToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 10, // 10 minutes
+  });
+
+  return response;
 }

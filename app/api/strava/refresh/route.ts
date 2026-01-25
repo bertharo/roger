@@ -61,11 +61,15 @@ export async function POST(request: NextRequest) {
       }))
       .slice(0, 30);
     
+    // Update last sync time in connection (connection already updated by refreshStravaToken)
+    // The connection is automatically updated when we refresh the token
+
     return NextResponse.json({
       success: true,
       runs,
       refreshed: true,
       message: 'Strava data refreshed successfully',
+      lastSync: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Error refreshing Strava data:', error);

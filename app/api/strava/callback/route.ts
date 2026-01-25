@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveStravaConnection } from '@/lib/db/strava';
 import { getUserId } from '@/lib/auth/getSession';
+import { getOAuthState, storeOAuthState, deleteOAuthState } from '@/lib/db/oauthState';
 
 /**
  * Strava OAuth Callback Endpoint
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const code = request.nextUrl.searchParams.get('code');
     const error = request.nextUrl.searchParams.get('error');
+    const state = request.nextUrl.searchParams.get('state');
 
     // Get base URL for redirects
     const host = request.headers.get('host') || '';
@@ -54,6 +56,7 @@ export async function GET(request: NextRequest) {
         client_secret: clientSecret,
         code,
         grant_type: 'authorization_code',
+        redirect_uri: redirectUri, // Include redirect_uri in token exchange
       }),
     });
 
@@ -68,33 +71,66 @@ export async function GET(request: NextRequest) {
     }
 
     const tokenData = await tokenResponse.json();
-    const { access_token, refresh_token, athlete } = tokenData;
+    const { access_token, refresh_token, athlete, expires_at } = tokenData;
 
     if (!access_token || !athlete) {
       console.error('Invalid token response from Strava:', tokenData);
       return NextResponse.redirect(`${baseUrl}/settings?error=invalid_token_response`);
     }
 
+    // Calculate token expiration (use expires_at from Strava if available)
+    const tokenExpiresAt = expires_at 
+      ? new Date(expires_at * 1000)
+      : (() => {
+          const date = new Date();
+          date.setHours(date.getHours() + 6); // Default 6 hours
+          return date;
+        })();
+
     // Get user ID from session
     const userId = await getUserId();
     
     if (!userId) {
-      // User not logged in - redirect to sign in
-      return NextResponse.redirect(`${baseUrl}/auth/signin?error=login_required&message=Please sign in to connect Strava`);
+      // User not logged in - store tokens temporarily and redirect to sign in
+      // After login, we can complete the connection
+      if (state) {
+        try {
+          await storeOAuthState(state, code, {
+            accessToken: access_token,
+            refreshToken: refresh_token || '',
+            athleteId: athlete.id,
+            expiresAt: tokenExpiresAt,
+          });
+          
+          // Store state in cookie for retrieval after login
+          const signInUrl = new URL('/auth/signin', baseUrl);
+          signInUrl.searchParams.set('strava_oauth', 'pending');
+          signInUrl.searchParams.set('state', state);
+          signInUrl.searchParams.set('callbackUrl', `${baseUrl}/settings`);
+          
+          return NextResponse.redirect(signInUrl.toString());
+        } catch (error) {
+          console.error('Failed to store OAuth state:', error);
+        }
+      }
+      
+      // Fallback: redirect to sign in with message
+      return NextResponse.redirect(`${baseUrl}/auth/signin?error=login_required&message=Please sign in to complete Strava connection`);
     }
     
     // Try to save to database
     try {
-      // Calculate token expiration (Strava tokens typically expire in 6 hours)
-      const tokenExpiresAt = new Date();
-      tokenExpiresAt.setHours(tokenExpiresAt.getHours() + 6);
-      
       await saveStravaConnection({
         athleteId: athlete.id,
         accessToken: access_token,
         refreshToken: refresh_token,
         tokenExpiresAt,
       }, userId);
+      
+      // Clean up OAuth state if it exists
+      if (state) {
+        await deleteOAuthState(state).catch(() => {}); // Ignore errors
+      }
       
       console.log('Strava connection saved to database for user:', userId);
     } catch (dbError) {

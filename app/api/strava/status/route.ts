@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
             return Response.json({
               connected: true,
               message: 'Strava connected successfully.',
+              lastSync: connection.updated_at,
             });
           }
         }

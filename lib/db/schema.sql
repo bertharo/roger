@@ -111,7 +111,22 @@ CREATE INDEX IF NOT EXISTS idx_strava_connections_athlete_id ON strava_connectio
 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_session_token ON sessions(session_token);
+-- OAuth state storage (for handling expired sessions during OAuth flow)
+CREATE TABLE IF NOT EXISTS oauth_states (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  state_token VARCHAR(255) UNIQUE NOT NULL,
+  code VARCHAR(255),
+  access_token TEXT,
+  refresh_token TEXT,
+  athlete_id BIGINT,
+  token_expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_api_usage_user_id ON api_usage(user_id);
 CREATE INDEX IF NOT EXISTS idx_api_usage_created_at ON api_usage(created_at);
 CREATE INDEX IF NOT EXISTS idx_daily_usage_user_date ON daily_usage(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_daily_costs_date ON daily_costs(date);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_state_token ON oauth_states(state_token);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_expires_at ON oauth_states(expires_at);
