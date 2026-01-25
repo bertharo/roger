@@ -34,55 +34,75 @@ export async function generateCoachChatResponse(
     outputTokens: number;
   };
 }> {
-  const openai = getOpenAIClient();
-  const systemPrompt = buildSystemPrompt(context);
-  const userPrompt = buildUserPrompt(userMessage, context);
-  
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt,
-      },
-      {
-        role: 'user',
-        content: userPrompt,
-      },
-    ],
-    temperature: 0.7,
-    response_format: { type: 'json_object' },
-  });
-  
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error('No response from OpenAI');
-  }
-  
-  // Extract token usage
-  const inputTokens = completion.usage?.prompt_tokens || 0;
-  const outputTokens = completion.usage?.completion_tokens || 0;
-  
   try {
-    const parsed = JSON.parse(content);
+    const openai = getOpenAIClient();
+    const systemPrompt = buildSystemPrompt(context);
+    const userPrompt = buildUserPrompt(userMessage, context);
     
-    return {
-      assistantMessage: parsed.assistantMessage || 'I understand. Let me help you with that.',
-      planModifications: parsed.planModifications || [],
-      tokenUsage: {
-        inputTokens,
-        outputTokens,
-      },
-    };
-  } catch (error) {
-    // Fallback to natural language if JSON parsing fails
-    return {
-      assistantMessage: content,
-      tokenUsage: {
-        inputTokens,
-        outputTokens,
-      },
-    };
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: userPrompt,
+        },
+      ],
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    });
+    
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('No response from OpenAI');
+    }
+    
+    // Extract token usage
+    const inputTokens = completion.usage?.prompt_tokens || 0;
+    const outputTokens = completion.usage?.completion_tokens || 0;
+    
+    try {
+      const parsed = JSON.parse(content);
+      
+      return {
+        assistantMessage: parsed.assistantMessage || 'I understand. Let me help you with that.',
+        planModifications: parsed.planModifications || [],
+        tokenUsage: {
+          inputTokens,
+          outputTokens,
+        },
+      };
+    } catch (error) {
+      // Fallback to natural language if JSON parsing fails
+      return {
+        assistantMessage: content,
+        tokenUsage: {
+          inputTokens,
+          outputTokens,
+        },
+      };
+    }
+  } catch (error: any) {
+    // Handle OpenAI API errors
+    if (error?.status === 401) {
+      throw new Error('OpenAI API key is invalid. Please check your API key configuration.');
+    }
+    if (error?.status === 429) {
+      throw new Error('OpenAI API rate limit exceeded. Please try again in a moment.');
+    }
+    if (error?.status === 500 || error?.status === 503) {
+      throw new Error('OpenAI API is temporarily unavailable. Please try again later.');
+    }
+    if (error?.code === 'insufficient_quota') {
+      throw new Error('OpenAI API quota exceeded. Please check your account billing.');
+    }
+    
+    // Re-throw with more context
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to generate coach response: ${errorMessage}`);
   }
 }
 

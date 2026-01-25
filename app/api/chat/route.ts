@@ -161,6 +161,15 @@ export async function POST(request: NextRequest) {
       plan = generateWeeklyPlan(goal, recentRuns);
     }
     
+    // Validate plan has days
+    if (!plan || !plan.days || plan.days.length === 0) {
+      console.error('Invalid plan generated:', plan);
+      return Response.json(
+        { error: 'Failed to generate training plan. Please try again.' },
+        { status: 500 }
+      );
+    }
+    
     const response = await generateCoachChatResponse(message, {
       currentPlan: plan,
       goal,

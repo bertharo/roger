@@ -249,6 +249,13 @@ export default function ChatPage() {
         body: JSON.stringify({
           message,
           currentPlan: plan,
+          runs, // Pass actual runs
+          goal, // Pass actual goal
+          chatHistory: chatMessages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp.toISOString(),
+          })),
         }),
       });
 
