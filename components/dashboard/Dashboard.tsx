@@ -101,7 +101,14 @@ export function Dashboard({
         
         {/* Current Week Plan */}
         <div className="px-4 pt-6 pb-3">
-          <h2 className="text-base font-semibold text-gray-900 mb-1">This Week</h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-base font-semibold text-gray-900">This Week</h2>
+            {twelveWeekPlans && twelveWeekPlans.length > 0 && selectedWeekIndex !== null && selectedWeekIndex !== undefined && (
+              <span className="text-xs text-gray-500">
+                Week {selectedWeekIndex + 1} of {twelveWeekPlans.length}
+              </span>
+            )}
+          </div>
           {plan && (
             <p className="text-xs text-gray-500">{plan.totalMilesPlanned} miles planned</p>
           )}
