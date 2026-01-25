@@ -125,6 +125,36 @@ export default function ChatPage() {
         const plansData = await response.json();
         const transformed = plansData.map((p: any) => transformPlanToDashboardFormat(p));
         setTwelveWeekPlans(transformed);
+        
+        // Auto-select current week
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+        const mondayOfThisWeek = new Date(today);
+        mondayOfThisWeek.setDate(diff);
+        mondayOfThisWeek.setHours(0, 0, 0, 0);
+        
+        // Find the current week index
+        let currentWeekIndex = 0;
+        for (let i = 0; i < transformed.length; i++) {
+          const weekStart = new Date(transformed[i].weekStartISO);
+          weekStart.setHours(0, 0, 0, 0);
+          if (mondayOfThisWeek.getTime() === weekStart.getTime()) {
+            currentWeekIndex = i;
+            break;
+          }
+        }
+        
+        // Auto-select and load current week
+        if (transformed[currentWeekIndex]) {
+          setSelectedWeekIndex(currentWeekIndex);
+          await loadPlan(runsData, goalData, transformed[currentWeekIndex].weekStartISO);
+        } else if (transformed[0]) {
+          // Fallback to first week if current week not found
+          setSelectedWeekIndex(0);
+          await loadPlan(runsData, goalData, transformed[0].weekStartISO);
+        }
       }
     } catch (error) {
       console.error('Failed to load 12-week plan:', error);

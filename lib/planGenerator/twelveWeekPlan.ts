@@ -44,10 +44,15 @@ export function generateTwelveWeekPlan(
     peakWeeklyMiles * 0.6 // But not more than 60% of peak
   );
   
-  // Start 12 weeks before race
+  // Start 12 weeks before race, but ensure we start on a Monday
   const startDate = new Date(raceDate);
   startDate.setDate(startDate.getDate() - 12 * 7);
   startDate.setHours(0, 0, 0, 0);
+  
+  // Adjust to Monday of that week
+  const day = startDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const diff = startDate.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  startDate.setDate(diff);
   
   // Generate 12 weekly plans with progressive mileage
   for (let week = 0; week < 12; week++) {

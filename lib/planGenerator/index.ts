@@ -42,15 +42,20 @@ export function generateWeeklyPlanWithPaces(
     : new Date();
   startDate.setHours(0, 0, 0, 0);
   
-  // Generate 7 days
+  // Ensure week starts on Monday
+  const day = startDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const diff = startDate.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  startDate.setDate(diff);
+  
+  // Generate 7 days (Monday through Sunday)
   const days: WeeklyPlanDay[] = [];
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
   for (let i = 0; i < 7; i++) {
     const currentDate = new Date(startDate);
     currentDate.setDate(startDate.getDate() + i);
     
-    const dayOfWeek = dayNames[currentDate.getDay()];
+    const dayOfWeek = dayNames[i]; // Use index directly since we start on Monday
     const dayPlan = generateDayPlan(
       i,
       dayOfWeek,

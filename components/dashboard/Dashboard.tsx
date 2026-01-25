@@ -10,6 +10,7 @@ import { KPIs } from './KPIs';
 import { TwelveWeekPlan } from './TwelveWeekPlan';
 import { RaceDayView } from './RaceDayView';
 import { UsageIndicator } from './UsageIndicator';
+import { WeekComparison } from './WeekComparison';
 import { useState, useEffect } from 'react';
 import { Run } from '@/lib/types';
 
@@ -54,6 +55,7 @@ export function Dashboard({
 }: DashboardProps) {
   const [chatPlaceholder, setChatPlaceholder] = useState("Ask about your plan...");
   const [showRaceDayView, setShowRaceDayView] = useState(false);
+  const [showWeekComparison, setShowWeekComparison] = useState(false);
 
   useEffect(() => {
     if (expandedDayIndex !== null && expandedDayIndex !== undefined && plan) {
@@ -103,11 +105,23 @@ export function Dashboard({
         <div className="px-4 pt-6 pb-3">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-base font-semibold text-gray-900">This Week</h2>
-            {twelveWeekPlans && twelveWeekPlans.length > 0 && selectedWeekIndex !== null && selectedWeekIndex !== undefined && (
-              <span className="text-xs text-gray-500">
-                Week {selectedWeekIndex + 1} of {twelveWeekPlans.length}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {twelveWeekPlans && twelveWeekPlans.length > 0 && selectedWeekIndex !== null && selectedWeekIndex !== undefined && (
+                <>
+                  <span className="text-xs text-gray-500">
+                    Week {selectedWeekIndex + 1} of {twelveWeekPlans.length}
+                  </span>
+                  {plan && runs.length > 0 && (
+                    <button
+                      onClick={() => setShowWeekComparison(true)}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Compare
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
           {plan && (
             <p className="text-xs text-gray-500">{plan.totalMilesPlanned} miles planned</p>
@@ -141,6 +155,15 @@ export function Dashboard({
         <RaceDayView
           goal={goal}
           onClose={() => setShowRaceDayView(false)}
+        />
+      )}
+      
+      {/* Week Comparison Modal */}
+      {showWeekComparison && plan && (
+        <WeekComparison
+          plan={plan}
+          actualRuns={runs}
+          onClose={() => setShowWeekComparison(false)}
         />
       )}
     </div>

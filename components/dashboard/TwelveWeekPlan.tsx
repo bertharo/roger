@@ -24,7 +24,7 @@ export function TwelveWeekPlan({
 
   const maxMiles = Math.max(...plans.map(p => p.totalMilesPlanned || 0));
   
-  // Find which week is the current week (today's week)
+  // Find which week is the current week (today's week, Monday-Sunday)
   const getCurrentWeekIndex = (): number | null => {
     if (!plans || plans.length === 0) {
       return null;
@@ -34,14 +34,19 @@ export function TwelveWeekPlan({
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
+      // Get Monday of current week
+      const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+      const mondayOfThisWeek = new Date(today);
+      mondayOfThisWeek.setDate(diff);
+      mondayOfThisWeek.setHours(0, 0, 0, 0);
+      
       for (let i = 0; i < plans.length; i++) {
         const weekStart = new Date(plans[i].weekStartISO);
         weekStart.setHours(0, 0, 0, 0);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 7);
         
-        // Check if today falls within this week
-        if (today >= weekStart && today < weekEnd) {
+        // Check if Monday of this week matches the week start
+        if (mondayOfThisWeek.getTime() === weekStart.getTime()) {
           return i;
         }
       }
@@ -49,7 +54,7 @@ export function TwelveWeekPlan({
       // If today is before the plan starts, return 0 (first week)
       const firstWeekStart = new Date(plans[0].weekStartISO);
       firstWeekStart.setHours(0, 0, 0, 0);
-      if (today < firstWeekStart) {
+      if (mondayOfThisWeek < firstWeekStart) {
         return 0;
       }
       
@@ -58,7 +63,7 @@ export function TwelveWeekPlan({
       lastWeekStart.setHours(0, 0, 0, 0);
       const lastWeekEnd = new Date(lastWeekStart);
       lastWeekEnd.setDate(lastWeekEnd.getDate() + 7);
-      if (today >= lastWeekEnd) {
+      if (mondayOfThisWeek >= lastWeekEnd) {
         return plans.length - 1;
       }
     } catch (error) {
@@ -126,18 +131,20 @@ export function TwelveWeekPlan({
   const overallProgress = calculateProgress();
   
   const handleWeekClick = (index: number) => {
-    console.log('Week clicked:', index, { onWeekSelect: !!onWeekSelect, onRaceDayClick: !!onRaceDayClick });
     const isLastWeek = index === plans.length - 1;
     const isRaceWeek = index === raceWeekIndex || (isLastWeek && !raceWeekIndex && goal);
     
-    if (isRaceWeek && onRaceDayClick) {
-      console.log('Opening race day view');
-      onRaceDayClick();
-    } else if (onWeekSelect) {
-      console.log('Selecting week:', index, plans[index]);
+    // Always select the week first
+    if (onWeekSelect) {
       onWeekSelect(index, plans[index]);
-    } else {
-      console.warn('No onWeekSelect handler provided');
+    }
+    
+    // If it's the race week and we have a race day click handler, also open that
+    if (isRaceWeek && onRaceDayClick) {
+      // Small delay to let the week selection happen first
+      setTimeout(() => {
+        onRaceDayClick();
+      }, 100);
     }
   };
 
