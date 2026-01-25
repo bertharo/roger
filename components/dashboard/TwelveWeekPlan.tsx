@@ -2,6 +2,7 @@
 
 import { WeeklyPlan, Goal } from '@/lib/types/dashboard';
 import { useState } from 'react';
+import { logger } from '@/lib/utils/logger';
 
 interface TwelveWeekPlanProps {
   plans: WeeklyPlan[];
@@ -66,9 +67,9 @@ export function TwelveWeekPlan({
       if (mondayOfThisWeek >= lastWeekEnd) {
         return plans.length - 1;
       }
-    } catch (error) {
-      console.error('Error detecting current week:', error);
-    }
+        } catch (error) {
+          logger.error('Error detecting current week:', error);
+        }
     
     return null;
   };
@@ -112,9 +113,9 @@ export function TwelveWeekPlan({
       if (daysDiff >= 0 && daysDiff <= 14) {
         return plans.length - 1; // Last week
       }
-    } catch (error) {
-      console.error('Error detecting race week:', error);
-    }
+        } catch (error) {
+          logger.error('Error detecting race week:', error);
+        }
     
     return null;
   };
@@ -196,11 +197,11 @@ export function TwelveWeekPlan({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('Button clicked directly:', index);
+                logger.debug('Week button clicked:', index);
                 handleWeekClick(index);
               }}
               onMouseDown={(e) => {
-                console.log('Mouse down on week:', index);
+                logger.debug('Mouse down on week:', index);
               }}
               className={`w-full text-left p-3 rounded-lg transition-all duration-200 cursor-pointer relative z-10 ${
                 (isRaceWeek || (isLastWeek && !raceWeekIndex && goal))

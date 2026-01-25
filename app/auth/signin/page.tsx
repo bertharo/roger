@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { logger } from '@/lib/utils/logger';
+import { showToast } from '@/lib/utils/toast';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -92,13 +94,17 @@ export default function SignInPage() {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
               placeholder="••••••••"
+              aria-label="Password"
+              aria-required="true"
+              autoComplete="current-password"
             />
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+            aria-busy={isLoading}
           >
             {isLoading ? 'Signing in...' : 'Sign in'}
           </button>

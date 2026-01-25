@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getOAuthState, deleteOAuthState } from '@/lib/db/oauthState';
 import { saveStravaConnection } from '@/lib/db/strava';
 import { getUserId } from '@/lib/auth/getSession';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,11 +54,11 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.redirect('/settings?connected=true');
     } catch (error) {
-      console.error('Failed to save Strava connection:', error);
+      logger.error('Failed to save Strava connection:', error);
       return NextResponse.redirect('/settings?error=connection_failed');
     }
   } catch (error) {
-    console.error('Error completing Strava OAuth:', error);
+    logger.error('Error completing Strava OAuth:', error);
     return NextResponse.redirect('/settings?error=unexpected_error');
   }
 }

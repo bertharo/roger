@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGoal, saveGoal } from '@/lib/db/goals';
 import { getUserId } from '@/lib/auth/getSession';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
           });
         }
       } catch (dbError) {
-        console.error('Database error, falling back to localStorage/cookies:', dbError);
+        logger.error('Database error, falling back to localStorage/cookies:', dbError);
       }
     }
     
@@ -55,8 +56,8 @@ export async function GET(request: NextRequest) {
       distance: 13.1,
       targetTimeMinutes: 95,
     });
-  } catch (error) {
-    console.error('Error loading goal:', error);
+      } catch (error) {
+        logger.error('Error loading goal:', error);
     return NextResponse.json(
       { error: 'Failed to load goal' },
       { status: 500 }
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     
     // Try to save to database
     try {
-      console.log('Attempting to save goal to database:', { raceName, raceDateISO, distanceMi, targetTimeMinutes, userId });
+      logger.debug('Attempting to save goal to database');
       const goalRow = await saveGoal({
         raceName,
         raceDateISO,
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
         targetTimeMinutes,
       }, userId);
       
-      console.log('Goal saved successfully to database:', goalRow);
+      logger.info('Goal saved successfully to database');
       
       return NextResponse.json({
         success: true,
@@ -105,12 +106,12 @@ export async function POST(request: NextRequest) {
           targetTimeMinutes: goalRow.target_time_minutes,
         },
       });
-    } catch (dbError: any) {
-      console.error('Database save failed:', {
-        error: dbError?.message,
-        stack: dbError?.stack,
-        hasDatabaseUrl: !!process.env.DATABASE_URL,
-      });
+        } catch (dbError: any) {
+          logger.error('Database save failed:', {
+            error: dbError?.message,
+            stack: dbError?.stack,
+            hasDatabaseUrl: !!process.env.DATABASE_URL,
+          });
       
       // Return error so frontend knows database save failed
       return NextResponse.json(
@@ -127,8 +128,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-  } catch (error) {
-    console.error('Error saving goal:', error);
+      } catch (error) {
+        logger.error('Error saving goal:', error);
     return NextResponse.json(
       { error: 'Failed to save goal' },
       { status: 500 }

@@ -2,6 +2,7 @@ import NextAuth, { type NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { query, queryOne } from '@/lib/db/client';
 import bcrypt from 'bcryptjs';
+import { logger } from '@/lib/utils/logger';
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -48,7 +49,7 @@ export const authConfig: NextAuthConfig = {
             name: user.name || null,
           };
         } catch (error) {
-          console.error('Auth error:', error);
+          logger.error('Auth error:', error);
           return null;
         }
       },

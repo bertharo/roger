@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserId } from '@/lib/auth/getSession';
 import { getUserDailyUsage, RATE_LIMITS } from '@/lib/rateLimit';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
       plan_limit: RATE_LIMITS.PLAN_GENERATIONS_PER_DAY,
     });
   } catch (error) {
-    console.error('Usage API error:', error);
+    logger.error('Usage API error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch usage' },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserId } from '@/lib/auth/getSession';
 import { getValidAccessToken, refreshStravaToken } from '@/lib/strava/refresh';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       lastSync: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error refreshing Strava data:', error);
+    logger.error('Error refreshing Strava data:', error);
     return NextResponse.json(
       { error: 'Failed to refresh Strava data' },
       { status: 500 }

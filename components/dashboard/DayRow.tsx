@@ -15,12 +15,14 @@ export function DayRow({ day, isExpanded, onToggle }: DayRowProps) {
       {/* Collapsed Row - ultra-minimal, flat design */}
       <button
         onClick={onToggle}
-        className="w-full py-2.5 text-left hover:bg-gray-50/20 transition-colors"
+        className="w-full py-2.5 text-left hover:bg-gray-50/20 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
         style={{ 
           background: 'transparent',
           border: 'none',
-          outline: 'none',
         }}
+        aria-expanded={isExpanded}
+        aria-controls={`day-details-${day.dateISO}`}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${day.dayLabel} ${day.title} details`}
       >
         <div className="flex items-center gap-3">
           {/* Day label */}
@@ -62,7 +64,12 @@ export function DayRow({ day, isExpanded, onToggle }: DayRowProps) {
 
       {/* Expanded Content */}
       {isExpanded && (
-        <div className="pb-4 pt-2">
+        <div 
+          id={`day-details-${day.dateISO}`}
+          className="pb-4 pt-2"
+          role="region"
+          aria-labelledby={`day-header-${day.dateISO}`}
+        >
           <div className="pl-10 pr-6 space-y-2.5">
             <p className="text-sm text-gray-600 leading-relaxed">{day.purpose}</p>
             

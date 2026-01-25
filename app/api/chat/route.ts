@@ -8,6 +8,7 @@ import { getUserId } from '@/lib/auth/getSession';
 import { checkChatRateLimit, incrementChatUsage } from '@/lib/rateLimit';
 import { trackUsage } from '@/lib/costTracking';
 import { checkGlobalCostLimit } from '@/lib/rateLimit';
+import { logger } from '@/lib/utils/logger';
 import mockData from '@/data/stravaMock.json';
 
 function inferRunType(activity: any): 'easy' | 'tempo' | 'interval' | 'long' | 'race' | 'recovery' {
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (e) {
-        console.error('Error loading Strava data in chat:', e);
+        logger.error('Error loading Strava data in chat:', e);
         // Use mock data as fallback
       }
     }
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest) {
       plan = transformPlanToCoreFormat(currentPlan);
       if (!plan) {
         // Fallback to generating if transformation fails
-        console.warn('Plan transformation failed, generating new plan');
+        logger.warn('Plan transformation failed, generating new plan');
         plan = generateWeeklyPlan(goal, recentRuns);
       }
     } else {
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest) {
     
     // Validate plan has days
     if (!plan || !plan.days || plan.days.length === 0) {
-      console.error('Invalid plan generated:', plan);
+      logger.error('Invalid plan generated:', plan);
       return Response.json(
         { error: 'Failed to generate training plan. Please try again.' },
         { status: 500 }
@@ -184,9 +185,9 @@ export async function POST(request: NextRequest) {
         'chat',
         response.tokenUsage.inputTokens,
         response.tokenUsage.outputTokens
-      ).catch(err => console.error('Failed to track usage (non-critical):', err));
+      ).catch(err => logger.error('Failed to track usage (non-critical):', err));
     }
-    await incrementChatUsage(userId).catch(err => console.error('Failed to increment usage (non-critical):', err));
+    await incrementChatUsage(userId).catch(err => logger.error('Failed to increment usage (non-critical):', err));
     
     // Apply modifications to plan if any
     let modifiedPlan = plan;
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
     try {
       updatedRateLimit = await checkChatRateLimit(userId);
     } catch (error) {
-      console.error('Error getting updated rate limit, using previous:', error);
+      logger.error('Error getting updated rate limit, using previous:', error);
       updatedRateLimit = rateLimit; // Fallback to previous rate limit
     }
     
@@ -226,7 +227,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Error in chat API:', error);
+    logger.error('Error in chat API:', error);
     
     // Handle OpenAI quota/rate limit errors
     if (error?.status === 429 || error?.code === 'insufficient_quota') {

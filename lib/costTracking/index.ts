@@ -1,4 +1,5 @@
 import { query, queryOne } from '@/lib/db/client';
+import { logger } from '@/lib/utils/logger';
 
 // OpenAI pricing (GPT-4o-mini as of 2024)
 const PRICING = {
@@ -63,7 +64,7 @@ export async function trackUsage(
     `;
   } catch (error) {
     // If database query fails, log but don't throw (non-critical for functionality)
-    console.error('Error tracking usage (non-critical):', error);
+    logger.error('Error tracking usage (non-critical):', error);
   }
 }
 
@@ -85,7 +86,7 @@ export async function getTodayGlobalCost(): Promise<number> {
     return result?.total_cost_usd || 0;
   } catch (error) {
     // If database query fails, return 0 (allow requests)
-    console.error('Error getting today global cost, returning 0:', error);
+    logger.error('Error getting today global cost, returning 0:', error);
     return 0;
   }
 }

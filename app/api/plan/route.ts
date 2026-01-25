@@ -5,6 +5,7 @@ import { Run, Goal } from '@/lib/types';
 import { getUserId } from '@/lib/auth/getSession';
 import { checkPlanRateLimit, incrementPlanUsage } from '@/lib/rateLimit';
 import { checkGlobalCostLimit } from '@/lib/rateLimit';
+import { logger } from '@/lib/utils/logger';
 import mockData from '@/data/stravaMock.json';
 
 export const runtime = 'nodejs';
@@ -50,10 +51,10 @@ export async function GET(request: NextRequest) {
           }
         }
       }
-    } catch (e) {
-      console.error('Error loading Strava data:', e);
-      // Use mock data as fallback
-    }
+      } catch (e) {
+        logger.error('Error loading Strava data:', e);
+        // Use mock data as fallback
+      }
     
     // Try to load goal from API, fallback to mock data
     let goal: Goal = mockData.goal;
@@ -90,8 +91,8 @@ export async function GET(request: NextRequest) {
     const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined);
     
     return Response.json(plan);
-  } catch (error) {
-    console.error('Error generating plan:', error);
+    } catch (error) {
+      logger.error('Error generating plan:', error);
     return Response.json(
       { error: 'Failed to generate plan' },
       { status: 500 }
@@ -179,7 +180,7 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (e) {
-        console.error('Error loading Strava data:', e);
+        logger.error('Error loading Strava data:', e);
       }
     }
     
@@ -232,8 +233,8 @@ export async function POST(request: NextRequest) {
         resetAt: updatedRateLimit.resetAt.toISOString(),
       },
     });
-  } catch (error) {
-    console.error('Error generating plan:', error);
+    } catch (error) {
+      logger.error('Error generating plan:', error);
     return Response.json(
       { error: 'Failed to generate plan' },
       { status: 500 }

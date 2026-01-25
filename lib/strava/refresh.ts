@@ -1,4 +1,5 @@
 import { getStravaConnection, saveStravaConnection } from '@/lib/db/strava';
+import { logger } from '@/lib/utils/logger';
 import { queryOne } from '@/lib/db/client';
 
 export interface StravaTokenResponse {
@@ -45,7 +46,7 @@ export async function refreshStravaToken(userId: string): Promise<{
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Token refresh failed:', {
+      logger.error('Token refresh failed:', {
         status: response.status,
         error: errorText,
       });
@@ -76,7 +77,7 @@ export async function refreshStravaToken(userId: string): Promise<{
       expiresAt,
     };
   } catch (error) {
-    console.error('Error refreshing Strava token:', error);
+    logger.error('Error refreshing Strava token:', error);
     return null;
   }
 }

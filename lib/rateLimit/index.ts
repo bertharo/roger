@@ -1,4 +1,5 @@
 import { query, queryOne } from '@/lib/db/client';
+import { logger } from '@/lib/utils/logger';
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -91,9 +92,9 @@ export async function checkGlobalCostLimit(): Promise<{
       currentCost,
       limit: RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
     };
-  } catch (error) {
-    // If database query fails (e.g., table doesn't exist), allow the request
-    console.error('Error checking global cost limit, allowing request:', error);
+    } catch (error) {
+      // If database query fails (e.g., table doesn't exist), allow the request
+      logger.error('Error checking global cost limit, allowing request:', error);
     return {
       allowed: true,
       currentCost: 0,
@@ -132,9 +133,9 @@ async function getOrCreateDailyUsage(
     }
     
     return usage;
-  } catch (error) {
-    // If database query fails (e.g., table doesn't exist), return default usage
-    console.error('Error getting daily usage, returning default:', error);
+    } catch (error) {
+      // If database query fails (e.g., table doesn't exist), return default usage
+      logger.error('Error getting daily usage, returning default:', error);
     return {
       chat_messages: 0,
       plan_generations: 0,
@@ -160,9 +161,9 @@ export async function incrementChatUsage(userId: string): Promise<void> {
         chat_messages = daily_usage.chat_messages + 1,
         updated_at = NOW()
     `;
-  } catch (error) {
-    // If database query fails, log but don't throw (non-critical)
-    console.error('Error incrementing chat usage:', error);
+    } catch (error) {
+      // If database query fails, log but don't throw (non-critical)
+      logger.error('Error incrementing chat usage:', error);
   }
 }
 
@@ -207,9 +208,9 @@ export async function getUserDailyUsage(
       total_cost_usd: 0,
       date: dateStr,
     };
-  } catch (error) {
-    // If database query fails, return default usage
-    console.error('Error getting user daily usage, returning default:', error);
+    } catch (error) {
+      // If database query fails, return default usage
+      logger.error('Error getting user daily usage, returning default:', error);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateStr = today.toISOString().split('T')[0];

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { saveStravaConnection } from '@/lib/db/strava';
 import { getUserId } from '@/lib/auth/getSession';
 import { getOAuthState, storeOAuthState, deleteOAuthState } from '@/lib/db/oauthState';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Strava OAuth Callback Endpoint
@@ -21,12 +22,12 @@ export async function GET(request: NextRequest) {
     const baseUrl = `${protocol}://${host}`;
 
     if (error) {
-      console.error('Strava OAuth error from Strava:', error);
+      logger.error('Strava OAuth error from Strava:', error);
       return NextResponse.redirect(`${baseUrl}/settings?error=strava_auth_failed`);
     }
 
     if (!code) {
-      console.error('No authorization code received from Strava');
+      logger.error('No authorization code received from Strava');
       return NextResponse.redirect(`${baseUrl}/settings?error=no_code`);
     }
 
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       `${baseUrl}/api/strava/callback`;
 
     if (!clientId || !clientSecret) {
-      console.error('Missing Strava credentials:', {
+      logger.error('Missing Strava credentials:', {
         hasClientId: !!clientId,
         hasClientSecret: !!clientSecret,
       });
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
-      console.error('Strava token exchange failed:', {
+      logger.error('Strava token exchange failed:', {
         status: tokenResponse.status,
         statusText: tokenResponse.statusText,
         error: errorText,
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
     const { access_token, refresh_token, athlete, expires_at } = tokenData;
 
     if (!access_token || !athlete) {
-      console.error('Invalid token response from Strava:', tokenData);
+      logger.error('Invalid token response from Strava:', tokenData);
       return NextResponse.redirect(`${baseUrl}/settings?error=invalid_token_response`);
     }
 
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
           
           return NextResponse.redirect(signInUrl.toString());
         } catch (error) {
-          console.error('Failed to store OAuth state:', error);
+          logger.error('Failed to store OAuth state:', error);
         }
       }
       
@@ -132,9 +133,9 @@ export async function GET(request: NextRequest) {
         await deleteOAuthState(state).catch(() => {}); // Ignore errors
       }
       
-      console.log('Strava connection saved to database for user:', userId);
+      logger.info('Strava connection saved to database for user:', userId);
     } catch (dbError) {
-      console.error('Database save failed, falling back to cookies:', dbError);
+      logger.error('Database save failed, falling back to cookies:', dbError);
       // Fallback to cookies if database fails
       const redirectResponse = NextResponse.redirect(`${baseUrl}/settings?connected=true`);
       
@@ -161,7 +162,7 @@ export async function GET(request: NextRequest) {
     const redirectResponse = NextResponse.redirect(`${baseUrl}/settings?connected=true`);
 
     // Log success
-    console.log('Strava connected successfully:', {
+    logger.info('Strava connected successfully:', {
       athleteId: athlete.id,
       athleteName: `${athlete.firstname} ${athlete.lastname}`,
       hasAccessToken: !!access_token,
@@ -170,7 +171,7 @@ export async function GET(request: NextRequest) {
 
     return redirectResponse;
   } catch (error) {
-    console.error('Unexpected error in Strava callback:', error);
+    logger.error('Unexpected error in Strava callback:', error);
     // Get base URL for error redirect
     const host = request.headers.get('host') || '';
     const protocol = host.includes('localhost') ? 'http' : 'https';

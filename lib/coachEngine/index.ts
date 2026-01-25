@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { CoachContext, CoachResponse } from '../types';
 import { buildSystemPrompt, buildUserPrompt } from './promptBuilder';
 import { validateCoachResponse, validatePredictedTime } from './validator';
+import { logger } from '../utils/logger';
 
 /**
  * Get OpenAI client instance (lazy initialization)
@@ -71,7 +72,7 @@ Do not include any text before or after the JSON.`,
     parsed = JSON.parse(content);
   } catch (error) {
     // Retry once with a more explicit prompt
-    console.warn('Failed to parse JSON, retrying...');
+    logger.warn('Failed to parse JSON, retrying...');
     const retryCompletion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [

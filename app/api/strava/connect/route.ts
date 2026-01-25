@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storeOAuthState } from '@/lib/db/oauthState';
 import crypto from 'crypto';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Strava OAuth Connect Endpoint
@@ -34,12 +35,12 @@ export async function GET(request: NextRequest) {
   // Generate state token for OAuth flow
   const stateToken = crypto.randomUUID();
   
-  // Store state in database (for handling expired sessions)
-  try {
-    await storeOAuthState(stateToken);
-  } catch (error) {
-    console.error('Failed to store OAuth state, continuing anyway:', error);
-  }
+    // Store state in database (for handling expired sessions)
+    try {
+      await storeOAuthState(stateToken);
+    } catch (error) {
+      logger.error('Failed to store OAuth state, continuing anyway:', error);
+    }
 
   // Strava OAuth authorization URL
   const authUrl = `https://www.strava.com/oauth/authorize?` +

@@ -16,6 +16,7 @@ import { DataSourceIndicator } from './DataSourceIndicator';
 import { useState, useEffect } from 'react';
 import { Run } from '@/lib/types';
 import { getMondayOfWeek, getSundayOfWeek } from '@/lib/utils/weekHelpers';
+import { logger } from '@/lib/utils/logger';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -86,7 +87,7 @@ export function Dashboard({
           }
         }
       } catch (error) {
-        console.error('Error checking Strava status:', error);
+        logger.error('Error checking Strava status:', error);
       }
     };
     

@@ -36,12 +36,18 @@ export function ChatBar({ placeholder = "Ask about your plan...", onSend, isLoad
           placeholder={placeholder}
           disabled={isLoading}
           className="flex-1 px-3 py-2 bg-gray-50/50 border border-gray-200/50 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-300 disabled:opacity-50 transition-all"
+          aria-label="Chat input"
+          aria-describedby="chat-input-description"
         />
+        <span id="chat-input-description" className="sr-only">
+          Type your message and press Enter to send
+        </span>
         <button
           onClick={handleSend}
           disabled={!input.trim() || isLoading}
           className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
           aria-label="Send message"
+          aria-busy={isLoading}
         >
           <svg
             className="w-4 h-4"

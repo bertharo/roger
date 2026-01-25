@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { logger } from '@/lib/utils/logger';
 
 interface UsageData {
   chat_messages: number;
@@ -22,7 +23,7 @@ export function UsageIndicator() {
           setUsage(data);
         }
       } catch (error) {
-        console.error('Error fetching usage:', error);
+        logger.error('Error fetching usage:', error);
       } finally {
         setLoading(false);
       }

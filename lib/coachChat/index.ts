@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { WeeklyPlan, Run, Goal, PlanModification, ChatMessage } from '../types';
+import { logger } from '../utils/logger';
 
 /**
  * Get OpenAI client instance (lazy initialization)

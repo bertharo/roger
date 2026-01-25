@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { logger } from '@/lib/utils/logger';
+import { showToast } from '@/lib/utils/toast';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -46,10 +48,14 @@ export default function SignUpPage() {
         router.refresh();
       } else {
         // Account created but sign-in failed, redirect to sign-in page
+        showToast.info('Account created! Please sign in.');
         router.push('/auth/signin?registered=true');
       }
     } catch (error) {
-      setError('An error occurred. Please try again.');
+      logger.error('Signup error:', error);
+      const errorMessage = 'An error occurred. Please try again.';
+      setError(errorMessage);
+      showToast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +87,8 @@ export default function SignUpPage() {
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
               placeholder="Your name"
+              aria-label="Name (optional)"
+              autoComplete="name"
             />
           </div>
 
@@ -96,6 +104,9 @@ export default function SignUpPage() {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
               placeholder="you@example.com"
+              aria-label="Email address"
+              aria-required="true"
+              autoComplete="email"
             />
           </div>
 
@@ -112,6 +123,9 @@ export default function SignUpPage() {
               minLength={8}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
               placeholder="At least 8 characters"
+              aria-label="Password"
+              aria-required="true"
+              autoComplete="new-password"
             />
             <p className="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
           </div>
@@ -119,7 +133,8 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+            aria-busy={isLoading}
           >
             {isLoading ? 'Creating account...' : 'Create account'}
           </button>

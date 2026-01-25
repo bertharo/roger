@@ -1,12 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { WeeklyPlan, RecentRun, Goal } from '@/lib/types/dashboard';
 import { transformPlanToDashboardFormat, transformRecentRun, transformGoal } from '@/lib/utils/mockData';
 import { calculateStatusBarKPIs } from '@/lib/utils/statusBar';
 import { formatTime } from '@/lib/utils/formatting';
 import { castMockRuns } from '@/lib/utils/typeHelpers';
+import { logger } from '@/lib/utils/logger';
+import { showToast } from '@/lib/utils/toast';
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { Run } from '@/lib/types';
 import mockData from '@/data/stravaMock.json';
 
 interface ChatMessage {
@@ -24,11 +29,13 @@ export default function ChatPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const [expandedDayIndex, setExpandedDayIndex] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [runs, setRuns] = useState<any[]>([]);
+  const [runs, setRuns] = useState<Run[]>([]);
   const [twelveWeekPlans, setTwelveWeekPlans] = useState<WeeklyPlan[]>([]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState<number | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
 
-  const loadStravaRuns = async () => {
+  const loadStravaRuns = useCallback(async (): Promise<Run[]> => {
     let runs = castMockRuns(mockData.runs);
     try {
       const stravaResponse = await fetch('/api/strava/activities');
@@ -39,109 +46,156 @@ export default function ChatPage() {
         }
       }
     } catch (error) {
-      console.error('Error loading Strava activities:', error);
+      logger.error('Error loading Strava activities:', error);
       // Use mock data as fallback
     }
     return runs;
-  };
+  }, []);
+
+  const loadGoalData = useCallback(async () => {
+    let goalData = mockData.goal; // Fallback to mock data
+    
+    // Try API first (database) - this is the source of truth
+    try {
+      const goalResponse = await fetch('/api/goal', {
+        credentials: 'include',
+      });
+      if (goalResponse.ok) {
+        const apiGoal = await goalResponse.json();
+        // Check if we got a real goal (not default)
+        if (apiGoal.raceDate && apiGoal.raceDate !== '2024-03-15T08:00:00Z') {
+          goalData = apiGoal;
+          // Also save to localStorage for faster access next time
+          try {
+            const transformed = transformGoal(goalData);
+            if (transformed) {
+              localStorage.setItem('user_goal', JSON.stringify(transformed));
+            }
+          } catch (e) {
+            // Ignore localStorage errors
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('Error loading goal from API:', error);
+    }
+    
+    // Fallback to localStorage if API didn't return a real goal
+    if (goalData === mockData.goal) {
+      try {
+        const savedGoal = localStorage.getItem('user_goal');
+        if (savedGoal) {
+          const parsed = JSON.parse(savedGoal);
+          // Convert dashboard format to core format
+          goalData = {
+            raceDate: parsed.raceDateISO,
+            distance: parsed.distanceMi,
+            targetTimeMinutes: parsed.targetTimeMinutes,
+          };
+        }
+      } catch (e) {
+        logger.error('Error loading goal from localStorage:', e);
+      }
+    }
+    
+    return goalData;
+  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+    let refreshInterval: NodeJS.Timeout | null = null;
+    
     const initialize = async () => {
-      // Try to load Strava data first, fallback to mock data
-      const runs = await loadStravaRuns();
+      setIsInitializing(true);
+      setInitializationError(null);
       
-      // Load goal from API first (database), then localStorage, then mock data
-      let goalData = mockData.goal; // Fallback to mock data
-      
-      // Try API first (database) - this is the source of truth
       try {
-        const goalResponse = await fetch('/api/goal', {
-          credentials: 'include',
-        });
-        if (goalResponse.ok) {
-          const apiGoal = await goalResponse.json();
-          // Check if we got a real goal (not default)
-          if (apiGoal.raceDate && apiGoal.raceDate !== '2024-03-15T08:00:00Z') {
-            goalData = apiGoal;
-            // Also save to localStorage for faster access next time
-            try {
-              const transformed = transformGoal(goalData);
-              if (transformed) {
-                localStorage.setItem('user_goal', JSON.stringify(transformed));
-              }
-            } catch (e) {
-              // Ignore localStorage errors
-            }
-          }
-        }
+        // Parallelize data loading for better performance
+        const [runsData, goalData] = await Promise.all([
+          loadStravaRuns(),
+          loadGoalData(),
+        ]);
+        
+        if (!isMounted) return;
+        
+        const transformedGoal = transformGoal(goalData);
+        setGoal(transformedGoal);
+        
+        const kpis = calculateStatusBarKPIs(goalData, runsData);
+        setEstimatedFinishTime(formatTime(kpis.predictedTimeMinutes));
+        setConfidence(kpis.confidence);
+        
+        const transformedRun = transformRecentRun(runsData);
+        setRecentRun(transformedRun);
+        setRuns(runsData);
+        
+        // Load plan and 12-week plan in parallel
+        await Promise.all([
+          loadPlan(runsData, goalData),
+          loadTwelveWeekPlan(goalData, runsData),
+        ]);
       } catch (error) {
-        console.error('Error loading goal from API:', error);
-      }
-      
-      // Fallback to localStorage if API didn't return a real goal
-      if (goalData === mockData.goal) {
-        try {
-          const savedGoal = localStorage.getItem('user_goal');
-          if (savedGoal) {
-            const parsed = JSON.parse(savedGoal);
-            // Convert dashboard format to core format
-            goalData = {
-              raceDate: parsed.raceDateISO,
-              distance: parsed.distanceMi,
-              targetTimeMinutes: parsed.targetTimeMinutes,
-            };
-          }
-        } catch (e) {
-          console.error('Error loading goal from localStorage:', e);
+        logger.error('Error during initialization:', error);
+        if (isMounted) {
+          setInitializationError('Failed to load data. Please refresh the page.');
+          showToast.error('Failed to load your training data');
+        }
+      } finally {
+        if (isMounted) {
+          setIsInitializing(false);
         }
       }
-      
-      const transformedGoal = transformGoal(goalData);
-      setGoal(transformedGoal);
-      
-      const kpis = calculateStatusBarKPIs(goalData, runs);
-      setEstimatedFinishTime(formatTime(kpis.predictedTimeMinutes));
-      setConfidence(kpis.confidence);
-      
-      const transformedRun = transformRecentRun(runs);
-      setRecentRun(transformedRun);
-      setRuns(runs);
-      
-      await loadPlan(runs, goalData);
-      await loadTwelveWeekPlan(goalData, runs);
     };
+    
     initialize();
     
-    // Auto-refresh Strava data every 5 minutes
-    const refreshInterval = setInterval(async () => {
-      try {
-        const runs = await loadStravaRuns();
-        setRuns(runs);
-        const transformedRun = transformRecentRun(runs);
-        setRecentRun(transformedRun);
-        // Reload goal and plan with fresh data
-        let currentGoal = mockData.goal;
-        try {
-          const goalResponse = await fetch('/api/goal', { credentials: 'include' });
-          if (goalResponse.ok) {
-            const apiGoal = await goalResponse.json();
-            if (apiGoal.raceDate && apiGoal.raceDate !== '2024-03-15T08:00:00Z') {
-              currentGoal = apiGoal;
+    // Auto-refresh Strava data every 5 minutes (only when tab is visible)
+    const setupRefresh = () => {
+      refreshInterval = setInterval(async () => {
+        // Only refresh if tab is visible
+        if (document.visibilityState === 'visible') {
+          try {
+            const runsData = await loadStravaRuns();
+            if (isMounted) {
+              setRuns(runsData);
+              const transformedRun = transformRecentRun(runsData);
+              setRecentRun(transformedRun);
+              
+              // Reload goal and plan with fresh data
+              const currentGoal = await loadGoalData();
+              await loadPlan(runsData, currentGoal);
             }
+          } catch (error) {
+            logger.error('Error auto-refreshing Strava data:', error);
           }
-        } catch (e) {
-          // Use fallback goal
         }
-        await loadPlan(runs, currentGoal);
-      } catch (error) {
-        console.error('Error auto-refreshing Strava data:', error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+      }, 5 * 60 * 1000); // 5 minutes
+    };
     
-    return () => clearInterval(refreshInterval);
-  }, []);
+    setupRefresh();
+    
+    // Pause refresh when tab is hidden
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+      } else if (document.visibilityState === 'visible' && !refreshInterval) {
+        setupRefresh();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      isMounted = false;
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadStravaRuns, loadGoalData]);
   
-  const loadTwelveWeekPlan = async (goalData: any, runsData: any[]) => {
+  const loadTwelveWeekPlan = useCallback(async (goalData: any, runsData: Run[]) => {
     try {
       const response = await fetch('/api/plan/twelve-week', {
         method: 'POST',
@@ -190,21 +244,20 @@ export default function ChatPage() {
         }
       }
     } catch (error) {
-      console.error('Failed to load 12-week plan:', error);
+      logger.error('Failed to load 12-week plan:', error);
+      showToast.error('Failed to load 12-week plan');
     }
-  };
+  }, []);
   
-  const handleWeekSelect = (weekIndex: number, weekPlan: WeeklyPlan) => {
-    console.log('handleWeekSelect called:', weekIndex, weekPlan);
-    console.log('Week plan days:', weekPlan.days);
+  const handleWeekSelect = useCallback((weekIndex: number, weekPlan: WeeklyPlan) => {
+    logger.debug('Week selected:', weekIndex);
     setSelectedWeekIndex(weekIndex);
     // Create a new object to ensure React detects the change
     setPlan({ ...weekPlan });
     setExpandedDayIndex(null);
-    console.log('Plan state updated, new plan:', { ...weekPlan });
-  };
+  }, []);
 
-  const loadPlan = async (runs?: any[], goalData?: any, weekStart?: string) => {
+  const loadPlan = useCallback(async (runs?: Run[], goalData?: any, weekStart?: string) => {
     try {
       // Pass runs data to plan API if available
       const response = await fetch('/api/plan', {
@@ -222,13 +275,16 @@ export default function ChatPage() {
       if (response.ok) {
         const planData = await response.json();
         const transformed = transformPlanToDashboardFormat(planData);
-        console.log('Plan loaded:', transformed);
+        logger.debug('Plan loaded successfully');
         setPlan(transformed);
+      } else {
+        throw new Error('Failed to load plan');
       }
     } catch (error) {
-      console.error('Failed to load plan:', error);
+      logger.error('Failed to load plan:', error);
+      showToast.error('Failed to load training plan');
     }
-  };
+  }, []);
 
   const handleChatSend = async (message: string) => {
     // Add user message to chat history
@@ -291,44 +347,72 @@ export default function ChatPage() {
         
         if (response.status === 429) {
           if (errorData.errorType === 'quota_exceeded') {
-            alert('⚠️ OpenAI API quota exceeded.\n\nPlease check your OpenAI account billing and plan. The chat feature is temporarily unavailable until you add credits or upgrade your plan.\n\nVisit: https://platform.openai.com/account/billing');
+            showToast.error('OpenAI API quota exceeded. Please check your account billing.');
           } else {
-            alert('⚠️ Rate limit exceeded. Please wait a moment and try again.');
+            showToast.error('Rate limit exceeded. Please wait a moment and try again.');
           }
+        } else if (response.status === 401) {
+          showToast.error('Authentication required. Please sign in again.');
+        } else if (response.status >= 500) {
+          showToast.error('Server error. Please try again later.');
         }
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      logger.error('Error sending message:', error);
       const errorMessage: ChatMessage = {
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please check your connection and try again.',
         timestamp: new Date(),
       };
       setChatMessages(prev => [...prev, errorMessage]);
-      alert('Failed to send message. Please check your connection and try again.');
+      showToast.error('Failed to send message. Please check your connection.');
     } finally {
       setChatLoading(false);
     }
   };
 
+  if (isInitializing) {
+    return <LoadingSkeleton />;
+  }
+
+  if (initializationError) {
+    return (
+      <div className="mx-auto max-w-md min-h-screen bg-white flex items-center justify-center px-4">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Failed to Load</h2>
+          <p className="text-sm text-gray-600 mb-4">{initializationError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+            aria-label="Reload page"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-md min-h-screen bg-white">
-      <Dashboard
-        plan={plan}
-        recentRun={recentRun}
-        goal={goal}
-        estimatedFinishTime={estimatedFinishTime}
-        confidence={confidence}
-        onChatSend={handleChatSend}
-        chatLoading={chatLoading}
-        expandedDayIndex={expandedDayIndex}
-        onDayExpand={setExpandedDayIndex}
-        chatMessages={chatMessages}
-        runs={runs}
-        twelveWeekPlans={twelveWeekPlans}
-        selectedWeekIndex={selectedWeekIndex}
-        onWeekSelect={handleWeekSelect}
-      />
-    </div>
+    <ErrorBoundary>
+      <div className="mx-auto max-w-md min-h-screen bg-white">
+        <Dashboard
+          plan={plan}
+          recentRun={recentRun}
+          goal={goal}
+          estimatedFinishTime={estimatedFinishTime}
+          confidence={confidence}
+          onChatSend={handleChatSend}
+          chatLoading={chatLoading}
+          expandedDayIndex={expandedDayIndex}
+          onDayExpand={setExpandedDayIndex}
+          chatMessages={chatMessages}
+          runs={runs}
+          twelveWeekPlans={twelveWeekPlans}
+          selectedWeekIndex={selectedWeekIndex}
+          onWeekSelect={handleWeekSelect}
+        />
+      </div>
+    </ErrorBoundary>
   );
 }

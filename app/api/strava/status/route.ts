@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getStravaConnection } from '@/lib/db/strava';
 import { getUserId } from '@/lib/auth/getSession';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Check Strava Connection Status
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (dbError) {
-        console.error('Database check failed, falling back to cookies:', dbError);
+        logger.error('Database check failed, falling back to cookies:', dbError);
       }
     }
     
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
         : 'Using mock data. Connect Strava to sync real runs.',
     });
   } catch (error) {
-    console.error('Error checking Strava status:', error);
+    logger.error('Error checking Strava status:', error);
     return Response.json({
       connected: false,
       message: 'Error checking connection status.',

@@ -120,7 +120,8 @@ export function RaceDayView({ goal, onClose }: RaceDayViewProps) {
         <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
           <button
             onClick={onClose}
-            className="w-full py-3 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+            className="w-full py-3 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+            aria-label="Close race day view"
           >
             Close
           </button>

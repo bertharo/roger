@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Goal } from '@/lib/types/dashboard';
+import { logger } from '@/lib/utils/logger';
+import { showToast } from '@/lib/utils/toast';
 
 export default function GoalSettingsPage() {
   const [goal, setGoal] = useState<Goal | null>(null);
@@ -26,7 +28,7 @@ export default function GoalSettingsPage() {
           setIsLoading(false);
           return;
         } catch (e) {
-          console.error('Error parsing localStorage goal:', e);
+          logger.error('Error parsing localStorage goal:', e);
         }
       }
       
@@ -72,7 +74,7 @@ export default function GoalSettingsPage() {
         setGoal(defaultGoal);
       }
     } catch (error) {
-      console.error('Error loading goal:', error);
+      logger.error('Error loading goal:', error);
       // Use default on error
       setGoal({
         raceName: 'Half Marathon',
@@ -88,7 +90,24 @@ export default function GoalSettingsPage() {
   const handleSave = async () => {
     if (!goal) return;
     
-    console.log('Saving goal:', goal);
+    // Validate form
+    const errors: Record<string, string> = {};
+    if (!goal.raceDateISO) {
+      errors.raceDateISO = 'Race date is required';
+    }
+    if (!goal.distanceMi || goal.distanceMi <= 0) {
+      errors.distanceMi = 'Distance must be greater than 0';
+    }
+    if (!goal.targetTimeMinutes || goal.targetTimeMinutes <= 0) {
+      errors.targetTimeMinutes = 'Target time must be greater than 0';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      showToast.error('Please fill in all required fields');
+      return;
+    }
+    
+    logger.debug('Saving goal:', goal);
     
     setIsSaving(true);
     try {
@@ -103,27 +122,27 @@ export default function GoalSettingsPage() {
       });
       
       const data = await response.json();
-      console.log('Save response:', data);
+      logger.debug('Save response:', data);
       
       if (response.ok && data.success) {
         // Database save succeeded
         // Also save to localStorage as backup
         localStorage.setItem('user_goal', JSON.stringify(goal));
-        console.log('Goal saved to database and localStorage');
-        alert('Goal saved successfully!');
+        logger.info('Goal saved to database and localStorage');
+        showToast.success('Goal saved successfully!');
         window.history.back();
       } else {
         // Database save failed, fallback to localStorage
-        console.warn('Database save failed, using localStorage:', data);
+        logger.warn('Database save failed, using localStorage:', data);
         localStorage.setItem('user_goal', JSON.stringify(goal));
-        alert(`Goal saved locally. ${data.error || 'Database unavailable'}. Please check your DATABASE_URL in Vercel.`);
+        showToast.error(`Goal saved locally. ${data.error || 'Database unavailable'}. Please check your DATABASE_URL in Vercel.`);
         window.history.back();
       }
     } catch (error: any) {
-      console.error('Error saving goal:', error);
+      logger.error('Error saving goal:', error);
       // Fallback to localStorage
       localStorage.setItem('user_goal', JSON.stringify(goal));
-      alert('Goal saved locally. Please check your connection and DATABASE_URL configuration.');
+      showToast.error('Goal saved locally. Please check your connection and DATABASE_URL configuration.');
       window.history.back();
     } finally {
       setIsSaving(false);
@@ -194,6 +213,8 @@ export default function GoalSettingsPage() {
                 handleChange('raceDateISO', dateISO);
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+              aria-label="Race date"
+              aria-required="true"
             />
           </div>
 
@@ -211,6 +232,8 @@ export default function GoalSettingsPage() {
               onChange={(e) => handleChange('distanceMi', parseFloat(e.target.value) || 0)}
               placeholder="13.1"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+              aria-label="Distance in miles"
+              aria-required="true"
             />
             <p className="mt-1 text-xs text-gray-500">
               Common distances: 5K (3.1), 10K (6.2), Half (13.1), Marathon (26.2)
@@ -230,6 +253,8 @@ export default function GoalSettingsPage() {
               onChange={(e) => handleChange('targetTimeMinutes', parseInt(e.target.value) || 0)}
               placeholder="95"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+              aria-label="Target time in minutes"
+              aria-required="true"
             />
             <p className="mt-1 text-xs text-gray-500">
               {goal.targetTimeMinutes ? `Target pace: ${(goal.targetTimeMinutes / goal.distanceMi).toFixed(2)} min/mi` : 'Enter target time'}
@@ -247,7 +272,8 @@ export default function GoalSettingsPage() {
             <button
               onClick={handleSave}
               disabled={isSaving || !goal.raceDateISO || !goal.distanceMi || !goal.targetTimeMinutes}
-              className="flex-1 py-2 px-4 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-2 px-4 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+              aria-busy={isSaving}
             >
               {isSaving ? 'Saving...' : 'Save Goal'}
             </button>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createUser } from '@/lib/auth/helpers';
 import { z } from 'zod';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Signup error:', error);
+    logger.error('Signup error:', error);
     return NextResponse.json(
       { error: 'Failed to create account' },
       { status: 500 }

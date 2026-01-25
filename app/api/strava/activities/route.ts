@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStravaConnection } from '@/lib/db/strava';
 import { getUserId } from '@/lib/auth/getSession';
 import { getValidAccessToken } from '@/lib/strava/refresh';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,9 +27,9 @@ export async function GET(request: NextRequest) {
     try {
       // This will automatically refresh the token if it's expired
       accessToken = await getValidAccessToken(userId);
-    } catch (dbError) {
-      console.error('Database check failed, falling back to cookies:', dbError);
-    }
+      } catch (dbError) {
+        logger.error('Database check failed, falling back to cookies:', dbError);
+      }
     
     // Fallback to cookies if database doesn't have token
     if (!accessToken) {
@@ -86,8 +87,8 @@ export async function GET(request: NextRequest) {
       .slice(0, 30); // Get most recent 30 runs
     
     return NextResponse.json({ runs });
-  } catch (error) {
-    console.error('Error fetching Strava activities:', error);
+      } catch (error) {
+        logger.error('Error fetching Strava activities:', error);
     return NextResponse.json(
       { error: 'Failed to fetch Strava activities' },
       { status: 500 }

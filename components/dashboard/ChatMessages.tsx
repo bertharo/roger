@@ -21,6 +21,8 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
         <div
           key={index}
           className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          role="article"
+          aria-label={`${message.role === 'user' ? 'You' : 'Roger'}: ${message.content.substring(0, 50)}...`}
         >
           <div
             className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${

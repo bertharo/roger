@@ -1,7 +1,8 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { generateTwelveWeekPlan } from '@/lib/planGenerator/twelveWeekPlan';
 import { castMockRuns } from '@/lib/utils/typeHelpers';
 import { Run, Goal } from '@/lib/types';
+import { logger } from '@/lib/utils/logger';
 import mockData from '@/data/stravaMock.json';
 
 export const runtime = 'nodejs';
@@ -51,9 +52,9 @@ export async function POST(request: NextRequest) {
             }
           }
         }
-      } catch (e) {
-        console.error('Error loading Strava data:', e);
-      }
+          } catch (e) {
+            logger.error('Error loading Strava data:', e);
+          }
     }
     
     // Use provided goal or load from cookies
@@ -92,8 +93,8 @@ export async function POST(request: NextRequest) {
     const plans = generateTwelveWeekPlan(goal, recentRuns);
     
     return Response.json(plans);
-  } catch (error) {
-    console.error('Error generating 12-week plan:', error);
+      } catch (error) {
+        logger.error('Error generating 12-week plan:', error);
     return Response.json(
       { error: 'Failed to generate 12-week plan' },
       { status: 500 }

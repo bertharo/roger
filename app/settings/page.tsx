@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { logger } from '@/lib/utils/logger';
+import { showToast } from '@/lib/utils/toast';
 
 export default function SettingsPage() {
   const [isConnected, setIsConnected] = useState(false);
@@ -24,8 +26,8 @@ export default function SettingsPage() {
         checkStravaConnection();
       }, 500);
     } else if (error) {
-      console.error('Strava connection error:', error);
-      alert(`Failed to connect Strava: ${error}`);
+      logger.error('Strava connection error:', error);
+      showToast.error(`Failed to connect Strava: ${error}`);
       // Clean up URL
       window.history.replaceState({}, '', '/settings');
     } else {
@@ -41,9 +43,9 @@ export default function SettingsPage() {
         const data = await response.json();
         setIsConnected(data.connected);
       }
-    } catch (error) {
-      console.error('Error checking Strava connection:', error);
-    }
+      } catch (error) {
+        logger.error('Error checking Strava connection:', error);
+      }
   };
 
   const handleConnectStrava = () => {
@@ -62,10 +64,10 @@ export default function SettingsPage() {
       // await fetch('/api/strava/disconnect', { method: 'POST' });
       setIsConnected(false);
       setLastSync(null);
-      alert('Strava disconnected successfully');
+      showToast.success('Strava disconnected successfully');
     } catch (error) {
-      console.error('Error disconnecting Strava:', error);
-      alert('Failed to disconnect Strava');
+      logger.error('Error disconnecting Strava:', error);
+      showToast.error('Failed to disconnect Strava');
     } finally {
       setIsLoading(false);
     }
@@ -81,16 +83,16 @@ export default function SettingsPage() {
       if (response.ok) {
         const data = await response.json();
         setLastSync(new Date());
-        alert('Strava data refreshed successfully!');
+        showToast.success('Strava data refreshed successfully!');
         // Optionally reload the page to show new data
         window.location.reload();
       } else {
-        const error = await response.json();
-        alert(`Failed to refresh: ${error.error || 'Unknown error'}`);
+        const errorData = await response.json();
+        showToast.error(`Failed to refresh: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error refreshing Strava:', error);
-      alert('Failed to refresh Strava data');
+      logger.error('Error refreshing Strava:', error);
+      showToast.error('Failed to refresh Strava data');
     } finally {
       setIsRefreshing(false);
     }
@@ -170,7 +172,8 @@ export default function SettingsPage() {
                 <button
                   onClick={handleDisconnectStrava}
                   disabled={isLoading || isRefreshing}
-                  className="w-full py-2 px-4 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                  className="w-full py-2 px-4 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  aria-label="Disconnect Strava account"
                 >
                   Disconnect Strava
                 </button>
@@ -179,7 +182,9 @@ export default function SettingsPage() {
               <button
                 onClick={handleConnectStrava}
                 disabled={isLoading}
-                className="w-full py-2 px-4 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                className="w-full py-2 px-4 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+                aria-busy={isLoading}
+                aria-label="Connect Strava account"
               >
                 {isLoading ? 'Connecting...' : 'Connect Strava'}
               </button>

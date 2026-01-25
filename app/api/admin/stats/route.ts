@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db/client';
 import { getUserId } from '@/lib/auth/getSession';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -78,8 +79,8 @@ export async function GET(request: NextRequest) {
       },
       topUsers: topUsers || [],
     });
-  } catch (error) {
-    console.error('Admin stats error:', error);
+      } catch (error) {
+        logger.error('Admin stats error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch stats' },
       { status: 500 }
