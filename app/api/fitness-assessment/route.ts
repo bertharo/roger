@@ -30,15 +30,14 @@ export async function GET(request: NextRequest) {
         recent_running_experience: string;
         longest_run_miles: number | null;
         completed_at: string;
-      }>(
-        `SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
+      }>`
+        SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
          recent_running_experience, longest_run_miles, completed_at
          FROM fitness_assessments 
-         WHERE user_id = $1 
+         WHERE user_id = ${userId} 
          ORDER BY completed_at DESC 
-         LIMIT 1`,
-        [userId]
-      );
+         LIMIT 1
+      `;
       
       if (assessment) {
         return NextResponse.json({
@@ -87,11 +86,12 @@ export async function POST(request: NextRequest) {
     const assessment: FitnessAssessment = await request.json();
     
       try {
-        await query(
-          `INSERT INTO fitness_assessments 
+        await query`
+          INSERT INTO fitness_assessments 
            (user_id, fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
             recent_running_experience, longest_run_miles, completed_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           VALUES (${userId}, ${assessment.fitnessLevel}, ${assessment.weeklyMileage}, ${assessment.daysPerWeek}, ${assessment.easyPaceMinPerMile || null}, 
+            ${assessment.recentRunningExperience}, ${assessment.longestRunMiles || null}, ${assessment.completedAt})
            ON CONFLICT (user_id) 
            DO UPDATE SET 
              fitness_level = EXCLUDED.fitness_level,
@@ -101,18 +101,8 @@ export async function POST(request: NextRequest) {
              recent_running_experience = EXCLUDED.recent_running_experience,
              longest_run_miles = EXCLUDED.longest_run_miles,
              completed_at = EXCLUDED.completed_at,
-             updated_at = NOW()`,
-          [
-            userId,
-            assessment.fitnessLevel,
-            assessment.weeklyMileage,
-            assessment.daysPerWeek,
-            assessment.easyPaceMinPerMile || null,
-            assessment.recentRunningExperience,
-            assessment.longestRunMiles || null,
-            assessment.completedAt,
-          ]
-        );
+             updated_at = NOW()
+        `;
         
         logger.info('Fitness assessment saved to database');
         return NextResponse.json({ success: true });

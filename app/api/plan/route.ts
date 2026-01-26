@@ -94,24 +94,23 @@ export async function GET(request: NextRequest) {
             recent_running_experience: string;
             longest_run_miles: number | null;
             completed_at: string;
-          }>(
-            `SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
+          }>`
+            SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
              recent_running_experience, longest_run_miles, completed_at
              FROM fitness_assessments 
-             WHERE user_id = $1 
+             WHERE user_id = ${userId} 
              ORDER BY completed_at DESC 
-             LIMIT 1`,
-            [userId]
-          );
+             LIMIT 1
+          `;
           
           if (assessment) {
             const assessmentData = {
               fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
               weeklyMileage: assessment.weekly_mileage,
               daysPerWeek: assessment.days_per_week,
-              easyPaceMinPerMile: assessment.easy_pace_min_per_mile,
+              easyPaceMinPerMile: assessment.easy_pace_min_per_mile ?? undefined,
               recentRunningExperience: assessment.recent_running_experience as 'none' | 'some' | 'regular',
-              longestRunMiles: assessment.longest_run_miles,
+              longestRunMiles: assessment.longest_run_miles ?? undefined,
               completedAt: assessment.completed_at,
             };
             runs = assessmentToRuns(assessmentData);
@@ -270,24 +269,23 @@ export async function POST(request: NextRequest) {
               recent_running_experience: string;
               longest_run_miles: number | null;
               completed_at: string;
-            }>(
-              `SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
+            }>`
+              SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
                recent_running_experience, longest_run_miles, completed_at
                FROM fitness_assessments 
-               WHERE user_id = $1 
+               WHERE user_id = ${userId} 
                ORDER BY completed_at DESC 
-               LIMIT 1`,
-              [userId]
-            );
+               LIMIT 1
+            `;
             
             if (assessment) {
               const assessmentData = {
                 fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
                 weeklyMileage: assessment.weekly_mileage,
                 daysPerWeek: assessment.days_per_week,
-                easyPaceMinPerMile: assessment.easy_pace_min_per_mile,
+                easyPaceMinPerMile: assessment.easy_pace_min_per_mile ?? undefined,
                 recentRunningExperience: assessment.recent_running_experience as 'none' | 'some' | 'regular',
-                longestRunMiles: assessment.longest_run_miles,
+                longestRunMiles: assessment.longest_run_miles ?? undefined,
                 completedAt: assessment.completed_at,
               };
               runs = assessmentToRuns(assessmentData);

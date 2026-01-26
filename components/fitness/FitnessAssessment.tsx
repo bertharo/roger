@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FitnessAssessment } from '@/lib/types';
+import type { FitnessAssessment } from '@/lib/types';
 import { showToast } from '@/lib/utils/toast';
 import { logger } from '@/lib/utils/logger';
 
