@@ -11,7 +11,8 @@ import { logger } from '@/lib/utils/logger';
 import { showToast } from '@/lib/utils/toast';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { Run } from '@/lib/types';
+import { FitnessAssessmentPrompt } from '@/components/fitness/FitnessAssessmentPrompt';
+import { Run, FitnessAssessment } from '@/lib/types';
 import mockData from '@/data/stravaMock.json';
 
 interface ChatMessage {
@@ -34,21 +35,47 @@ export default function ChatPage() {
   const [selectedWeekIndex, setSelectedWeekIndex] = useState<number | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initializationError, setInitializationError] = useState<string | null>(null);
+  const [showAssessmentPrompt, setShowAssessmentPrompt] = useState(false);
+  const [hasStravaData, setHasStravaData] = useState(false);
 
   const loadStravaRuns = useCallback(async (): Promise<Run[]> => {
     let runs = castMockRuns(mockData.runs);
+    let hasData = false;
     try {
       const stravaResponse = await fetch('/api/strava/activities');
       if (stravaResponse.ok) {
         const stravaData = await stravaResponse.json();
         if (stravaData.runs && stravaData.runs.length > 0) {
           runs = stravaData.runs;
+          hasData = true;
         }
       }
     } catch (error) {
       logger.error('Error loading Strava activities:', error);
       // Use mock data as fallback
     }
+    setHasStravaData(hasData);
+    
+    // Check if we need to show fitness assessment prompt
+    if (!hasData) {
+      try {
+        const assessmentResponse = await fetch('/api/fitness-assessment');
+        if (assessmentResponse.ok) {
+          const data = await assessmentResponse.json();
+          if (!data.fitnessLevel) {
+            // No assessment, show prompt
+            setShowAssessmentPrompt(true);
+          }
+        }
+      } catch (error) {
+        // If API fails, check localStorage
+        const saved = localStorage.getItem('fitness_assessment');
+        if (!saved) {
+          setShowAssessmentPrompt(true);
+        }
+      }
+    }
+    
     return runs;
   }, []);
 
@@ -393,9 +420,30 @@ export default function ChatPage() {
     );
   }
 
+  const handleAssessmentComplete = async (assessment: FitnessAssessment) => {
+    setShowAssessmentPrompt(false);
+    showToast.success('Fitness assessment saved! Your plan will be updated.');
+    // Reload plan with new assessment data
+    const goalData = await loadGoalData();
+    const runsData = await loadStravaRuns();
+    await loadPlan(runsData, goalData);
+  };
+
+  const handleAssessmentDismiss = () => {
+    setShowAssessmentPrompt(false);
+    // Store dismissal in localStorage so we don't show it again for a while
+    localStorage.setItem('fitness_assessment_dismissed', new Date().toISOString());
+  };
+
   return (
     <ErrorBoundary>
       <div className="mx-auto max-w-md min-h-screen bg-white">
+        {showAssessmentPrompt && !hasStravaData && (
+          <FitnessAssessmentPrompt
+            onComplete={handleAssessmentComplete}
+            onDismiss={handleAssessmentDismiss}
+          />
+        )}
         <Dashboard
           plan={plan}
           recentRun={recentRun}

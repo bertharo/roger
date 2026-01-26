@@ -81,3 +81,13 @@ export interface CoachResponse {
   recommendedNextRun: RecommendedRun;
   kpis: KPIs;
 }
+
+export interface FitnessAssessment {
+  fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
+  weeklyMileage: number; // miles per week they're comfortable with
+  daysPerWeek: number; // how many days they can run
+  easyPaceMinPerMile?: number; // if they know their easy pace
+  recentRunningExperience: 'none' | 'some' | 'regular'; // none = new, some = occasional, regular = consistent
+  longestRunMiles?: number; // longest run they've done recently
+  completedAt: string; // ISO date string
+}

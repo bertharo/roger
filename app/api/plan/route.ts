@@ -6,6 +6,8 @@ import { getUserId } from '@/lib/auth/getSession';
 import { checkPlanRateLimit, incrementPlanUsage } from '@/lib/rateLimit';
 import { checkGlobalCostLimit } from '@/lib/rateLimit';
 import { logger } from '@/lib/utils/logger';
+import { assessmentToRuns } from '@/lib/fitness/assessmentToRuns';
+import { queryOne } from '@/lib/db/client';
 import mockData from '@/data/stravaMock.json';
 
 export const runtime = 'nodejs';
@@ -16,45 +18,120 @@ export async function GET(request: NextRequest) {
     const weekStart = request.nextUrl.searchParams.get('weekStart');
     
     // Try to load Strava data first
-    let runs: Run[] = castMockRuns(mockData.runs);
+    let runs: Run[] = [];
+    let hasStravaData = false;
+    
     try {
-      const cookieHeader = request.headers.get('cookie') || '';
-      const tokenCookie = cookieHeader
-        .split(';')
-        .find(c => c.trim().startsWith('strava_access_token='));
+      const userId = await getUserId();
       
-      if (tokenCookie) {
-        const accessToken = tokenCookie.split('=')[1].trim();
-        const stravaResponse = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        });
-        
-        if (stravaResponse.ok) {
-          const activities = await stravaResponse.json();
-          const runActivities = activities
-            .filter((a: any) => a.type === 'Run')
-            .map((a: any) => ({
-              id: String(a.id),
-              date: a.start_date,
-              distanceMiles: a.distance / 1609.34,
-              durationSeconds: a.moving_time || a.elapsed_time,
-              averagePaceMinPerMile: (a.moving_time || a.elapsed_time) / 60 / (a.distance / 1609.34),
-              type: inferRunType(a),
-              elevationFeet: a.total_elevation_gain ? a.total_elevation_gain * 3.28084 : undefined,
-              notes: a.name,
-            }));
+      // Try database first (for logged-in users)
+      if (userId) {
+        try {
+          const stravaResponse = await fetch(`${request.nextUrl.origin}/api/strava/activities`, {
+            headers: {
+              cookie: request.headers.get('cookie') || '',
+            },
+          });
           
-          if (runActivities.length > 0) {
-            runs = runActivities;
+          if (stravaResponse.ok) {
+            const stravaData = await stravaResponse.json();
+            if (stravaData.runs && stravaData.runs.length > 0) {
+              runs = stravaData.runs;
+              hasStravaData = true;
+            }
+          }
+        } catch (e) {
+          logger.error('Error loading Strava data from API:', e);
+        }
+      }
+      
+      // Fallback to cookie-based Strava token
+      if (!hasStravaData) {
+        const cookieHeader = request.headers.get('cookie') || '';
+        const tokenCookie = cookieHeader
+          .split(';')
+          .find(c => c.trim().startsWith('strava_access_token='));
+        
+        if (tokenCookie) {
+          const accessToken = tokenCookie.split('=')[1].trim();
+          const stravaResponse = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          });
+          
+          if (stravaResponse.ok) {
+            const activities = await stravaResponse.json();
+            const runActivities = activities
+              .filter((a: any) => a.type === 'Run')
+              .map((a: any) => ({
+                id: String(a.id),
+                date: a.start_date,
+                distanceMiles: a.distance / 1609.34,
+                durationSeconds: a.moving_time || a.elapsed_time,
+                averagePaceMinPerMile: (a.moving_time || a.elapsed_time) / 60 / (a.distance / 1609.34),
+                type: inferRunType(a),
+                elevationFeet: a.total_elevation_gain ? a.total_elevation_gain * 3.28084 : undefined,
+                notes: a.name,
+              }));
+            
+            if (runActivities.length > 0) {
+              runs = runActivities;
+              hasStravaData = true;
+            }
           }
         }
       }
-      } catch (e) {
-        logger.error('Error loading Strava data:', e);
-        // Use mock data as fallback
+      
+      // If no Strava data, try fitness assessment
+      if (!hasStravaData && userId) {
+        try {
+          const assessment = await queryOne<{
+            fitness_level: string;
+            weekly_mileage: number;
+            days_per_week: number;
+            easy_pace_min_per_mile: number | null;
+            recent_running_experience: string;
+            longest_run_miles: number | null;
+            completed_at: string;
+          }>(
+            `SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
+             recent_running_experience, longest_run_miles, completed_at
+             FROM fitness_assessments 
+             WHERE user_id = $1 
+             ORDER BY completed_at DESC 
+             LIMIT 1`,
+            [userId]
+          );
+          
+          if (assessment) {
+            const assessmentData = {
+              fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
+              weeklyMileage: assessment.weekly_mileage,
+              daysPerWeek: assessment.days_per_week,
+              easyPaceMinPerMile: assessment.easy_pace_min_per_mile,
+              recentRunningExperience: assessment.recent_running_experience as 'none' | 'some' | 'regular',
+              longestRunMiles: assessment.longest_run_miles,
+              completedAt: assessment.completed_at,
+            };
+            runs = assessmentToRuns(assessmentData);
+            logger.info('Using fitness assessment data for plan generation');
+          }
+        } catch (dbError: any) {
+          if (!dbError.message?.includes('does not exist')) {
+            logger.error('Error loading fitness assessment:', dbError);
+          }
+        }
       }
+      
+      // Final fallback to mock data
+      if (runs.length === 0) {
+        runs = castMockRuns(mockData.runs);
+      }
+    } catch (e) {
+      logger.error('Error loading run data:', e);
+      runs = castMockRuns(mockData.runs);
+    }
     
     // Try to load goal from API, fallback to mock data
     let goal: Goal = mockData.goal;
@@ -140,8 +217,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { runs: providedRuns, goal: providedGoal, weekStart } = body;
     
-    // Use provided runs or try to load from Strava
-    let runs: Run[] = providedRuns || castMockRuns(mockData.runs);
+    // Use provided runs or try to load from Strava or fitness assessment
+    let runs: Run[] = providedRuns || [];
+    let hasStravaData = false;
     
     if (!providedRuns) {
       // Try to load Strava data
@@ -176,11 +254,59 @@ export async function POST(request: NextRequest) {
             
             if (runActivities.length > 0) {
               runs = runActivities;
+              hasStravaData = true;
             }
           }
         }
+        
+        // If no Strava data, try fitness assessment
+        if (!hasStravaData) {
+          try {
+            const assessment = await queryOne<{
+              fitness_level: string;
+              weekly_mileage: number;
+              days_per_week: number;
+              easy_pace_min_per_mile: number | null;
+              recent_running_experience: string;
+              longest_run_miles: number | null;
+              completed_at: string;
+            }>(
+              `SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
+               recent_running_experience, longest_run_miles, completed_at
+               FROM fitness_assessments 
+               WHERE user_id = $1 
+               ORDER BY completed_at DESC 
+               LIMIT 1`,
+              [userId]
+            );
+            
+            if (assessment) {
+              const assessmentData = {
+                fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
+                weeklyMileage: assessment.weekly_mileage,
+                daysPerWeek: assessment.days_per_week,
+                easyPaceMinPerMile: assessment.easy_pace_min_per_mile,
+                recentRunningExperience: assessment.recent_running_experience as 'none' | 'some' | 'regular',
+                longestRunMiles: assessment.longest_run_miles,
+                completedAt: assessment.completed_at,
+              };
+              runs = assessmentToRuns(assessmentData);
+              logger.info('Using fitness assessment data for plan generation');
+            }
+          } catch (dbError: any) {
+            if (!dbError.message?.includes('does not exist')) {
+              logger.error('Error loading fitness assessment:', dbError);
+            }
+          }
+        }
+        
+        // Final fallback to mock data
+        if (runs.length === 0) {
+          runs = castMockRuns(mockData.runs);
+        }
       } catch (e) {
-        logger.error('Error loading Strava data:', e);
+        logger.error('Error loading run data:', e);
+        runs = castMockRuns(mockData.runs);
       }
     }
     

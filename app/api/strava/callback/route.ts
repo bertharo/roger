@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       logger.error('Strava OAuth error from Strava:', error);
+      // Check for quota limit error
+      if (error.includes('403') || error.includes('quota') || error.includes('limit')) {
+        return NextResponse.redirect(`${baseUrl}/settings?error=quota_exceeded`);
+      }
       return NextResponse.redirect(`${baseUrl}/settings?error=strava_auth_failed`);
     }
 
@@ -68,6 +72,12 @@ export async function GET(request: NextRequest) {
         statusText: tokenResponse.statusText,
         error: errorText,
       });
+      
+      // Check for 403 quota limit error
+      if (tokenResponse.status === 403 || errorText.includes('quota') || errorText.includes('limit') || errorText.includes('exceeded')) {
+        return NextResponse.redirect(`${baseUrl}/settings?error=quota_exceeded`);
+      }
+      
       return NextResponse.redirect(`${baseUrl}/settings?error=token_exchange_failed`);
     }
 
