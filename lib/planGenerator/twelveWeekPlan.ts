@@ -72,20 +72,19 @@ export function generateTwelveWeekPlan(
   }
   
   // Calculate starting mileage
-  // For true beginners (0 miles/week), start very conservatively
+  // For true beginners (0 miles/week), start very conservatively based on daysPerWeek
   // For others, increase by max 10% from current, but respect reasonable minimums
   const fitnessLevel = assessment?.fitnessLevel || 'intermediate';
+  const daysPerWeek = assessment?.daysPerWeek || 3;
   
   let startingMiles: number;
   if (recentWeeklyMiles === 0) {
-    // True beginner - start very conservatively based on fitness level
-    if (fitnessLevel === 'beginner') {
-      startingMiles = 5; // Start with 5 miles/week for complete beginners
-    } else if (fitnessLevel === 'intermediate') {
-      startingMiles = 8; // Intermediate but no recent running - start at 8
-    } else {
-      startingMiles = 12; // Advanced but no recent running - start at 12
-    }
+    // True beginner - calculate conservatively based on daysPerWeek
+    // ~2.5 miles per run day for beginners, adjusted by fitness level
+    const milesPerDay = fitnessLevel === 'beginner' ? 2.5 : 
+                        fitnessLevel === 'intermediate' ? 3.0 : 
+                        3.5;
+    startingMiles = daysPerWeek * milesPerDay;
   } else {
     // Has some running base - increase conservatively (max 10%)
     const minStartingMiles = fitnessLevel === 'beginner' ? 8 : fitnessLevel === 'intermediate' ? 12 : 18;
