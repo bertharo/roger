@@ -491,11 +491,17 @@ export default function ChatPage() {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
       
-      // Reload runs first to ensure we have the latest state
-      const freshRuns = await loadStravaRuns();
-      setRuns(freshRuns);
+      // Convert assessment to runs immediately to avoid database query race condition
+      const { assessmentToRuns } = await import('@/lib/fitness/assessmentToRuns');
+      const assessmentRuns = assessmentToRuns(assessment);
+      logger.info(`Generated ${assessmentRuns.length} runs from assessment`);
       
-      // Reload both weekly and 12-week plans - don't pass runs, let API check for fitness assessment
+      // Update runs state with assessment runs
+      setRuns(assessmentRuns);
+      const transformedRun = transformRecentRun(assessmentRuns);
+      setRecentRun(transformedRun);
+      
+      // Reload both weekly and 12-week plans with assessment runs
       const goalData = await loadGoalData();
       
       if (!goalData) {
@@ -504,12 +510,7 @@ export default function ChatPage() {
       }
       
       try {
-        logger.info('Reloading plans after assessment completion');
-        // Convert assessment to runs immediately to avoid database query race condition
-        const { assessmentToRuns } = await import('@/lib/fitness/assessmentToRuns');
-        const assessmentRuns = assessmentToRuns(assessment);
-        logger.info(`Generated ${assessmentRuns.length} runs from assessment`);
-        
+        logger.info('Reloading plans after assessment completion with', assessmentRuns.length, 'runs');
         // Reload 12-week plan with assessment runs directly
         await loadTwelveWeekPlan(goalData, assessmentRuns);
         logger.info('Plan reloaded after assessment completion');
