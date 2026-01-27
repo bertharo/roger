@@ -233,6 +233,7 @@ export default function ChatPage() {
   
   const loadTwelveWeekPlan = useCallback(async (goalData: any, runsData: Run[]) => {
     try {
+      logger.debug('Loading 12-week plan with runsData length:', runsData.length);
       const response = await fetch('/api/plan/twelve-week', {
         method: 'POST',
         headers: {
@@ -240,12 +241,13 @@ export default function ChatPage() {
         },
         body: JSON.stringify({
           goal: goalData,
-          runs: runsData,
+          runs: runsData, // Pass empty array to trigger fitness assessment check
         }),
       });
       
       if (response.ok) {
         const plansData = await response.json();
+        logger.debug('12-week plan loaded, weeks:', plansData.length);
         const transformed = plansData.map((p: any) => transformPlanToDashboardFormat(p));
         setTwelveWeekPlans(transformed);
         
@@ -273,18 +275,24 @@ export default function ChatPage() {
         if (transformed[currentWeekIndex]) {
           setSelectedWeekIndex(currentWeekIndex);
           // Pass undefined if no runs - let API check for fitness assessment
+          logger.debug('Loading plan for current week:', currentWeekIndex);
           await loadPlan(runsData.length > 0 ? runsData : undefined, goalData, transformed[currentWeekIndex].weekStartISO);
         } else if (transformed[0]) {
           // Fallback to first week if current week not found
           setSelectedWeekIndex(0);
+          logger.debug('Loading plan for first week (fallback)');
           await loadPlan(runsData.length > 0 ? runsData : undefined, goalData, transformed[0].weekStartISO);
         }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        logger.error('Failed to load 12-week plan:', errorData);
+        showToast.error(`Failed to load 12-week plan: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       logger.error('Failed to load 12-week plan:', error);
       showToast.error('Failed to load 12-week plan');
     }
-  }, []);
+  }, [loadPlan]);
   
   const handleWeekSelect = useCallback((weekIndex: number, weekPlan: WeeklyPlan) => {
     logger.debug('Week selected:', weekIndex);
