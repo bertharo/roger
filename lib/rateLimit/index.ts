@@ -75,6 +75,15 @@ export async function checkGlobalCostLimit(): Promise<{
   limit: number;
 }> {
   try {
+    // Check if DATABASE_URL is configured before attempting query
+    if (!process.env.DATABASE_URL) {
+      return {
+        allowed: true,
+        currentCost: 0,
+        limit: RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
+      };
+    }
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateStr = today.toISOString().split('T')[0];
@@ -92,9 +101,13 @@ export async function checkGlobalCostLimit(): Promise<{
       currentCost,
       limit: RATE_LIMITS.GLOBAL_DAILY_COST_LIMIT_USD,
     };
-    } catch (error) {
-      // If database query fails (e.g., table doesn't exist), allow the request
+  } catch (error: any) {
+    // If database query fails (e.g., table doesn't exist), allow the request
+    if (error.message?.includes('does not exist') || error.code === '42P01') {
+      logger.debug('Daily costs table does not exist, allowing request');
+    } else {
       logger.error('Error checking global cost limit, allowing request:', error);
+    }
     return {
       allowed: true,
       currentCost: 0,
@@ -111,6 +124,15 @@ async function getOrCreateDailyUsage(
   date: Date
 ): Promise<DailyUsage> {
   try {
+    // Check if DATABASE_URL is configured before attempting query
+    if (!process.env.DATABASE_URL) {
+      return {
+        chat_messages: 0,
+        plan_generations: 0,
+        total_cost_usd: 0,
+      };
+    }
+    
     const dateStr = date.toISOString().split('T')[0];
     
     let usage = await queryOne<DailyUsage>`
@@ -133,9 +155,13 @@ async function getOrCreateDailyUsage(
     }
     
     return usage;
-    } catch (error) {
-      // If database query fails (e.g., table doesn't exist), return default usage
+  } catch (error: any) {
+    // If database query fails (e.g., table doesn't exist), return default usage
+    if (error.message?.includes('does not exist') || error.code === '42P01') {
+      logger.debug('Daily usage table does not exist, returning default');
+    } else {
       logger.error('Error getting daily usage, returning default:', error);
+    }
     return {
       chat_messages: 0,
       plan_generations: 0,
@@ -149,6 +175,11 @@ async function getOrCreateDailyUsage(
  */
 export async function incrementChatUsage(userId: string): Promise<void> {
   try {
+    // Check if DATABASE_URL is configured before attempting query
+    if (!process.env.DATABASE_URL) {
+      return; // Silently skip if database not configured
+    }
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateStr = today.toISOString().split('T')[0];
@@ -161,9 +192,13 @@ export async function incrementChatUsage(userId: string): Promise<void> {
         chat_messages = daily_usage.chat_messages + 1,
         updated_at = NOW()
     `;
-    } catch (error) {
-      // If database query fails, log but don't throw (non-critical)
+  } catch (error: any) {
+    // If database query fails, log but don't throw (non-critical)
+    if (error.message?.includes('does not exist') || error.code === '42P01') {
+      logger.debug('Daily usage table does not exist, skipping usage tracking');
+    } else {
       logger.error('Error incrementing chat usage:', error);
+    }
   }
 }
 
@@ -171,18 +206,32 @@ export async function incrementChatUsage(userId: string): Promise<void> {
  * Increment plan generation count
  */
 export async function incrementPlanUsage(userId: string): Promise<void> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dateStr = today.toISOString().split('T')[0];
-  
-  await query`
-    INSERT INTO daily_usage (user_id, date, plan_generations)
-    VALUES (${userId}, ${dateStr}, 1)
-    ON CONFLICT (user_id, date)
-    DO UPDATE SET
-      plan_generations = daily_usage.plan_generations + 1,
-      updated_at = NOW()
-  `;
+  try {
+    // Check if DATABASE_URL is configured before attempting query
+    if (!process.env.DATABASE_URL) {
+      return; // Silently skip if database not configured
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateStr = today.toISOString().split('T')[0];
+    
+    await query`
+      INSERT INTO daily_usage (user_id, date, plan_generations)
+      VALUES (${userId}, ${dateStr}, 1)
+      ON CONFLICT (user_id, date)
+      DO UPDATE SET
+        plan_generations = daily_usage.plan_generations + 1,
+        updated_at = NOW()
+    `;
+  } catch (error: any) {
+    // If database query fails (e.g., table doesn't exist), log but don't throw (non-critical)
+    if (error.message?.includes('does not exist') || error.code === '42P01') {
+      logger.debug('Daily usage table does not exist, skipping usage tracking');
+    } else {
+      logger.error('Error incrementing plan usage:', error);
+    }
+  }
 }
 
 /**
@@ -192,6 +241,19 @@ export async function getUserDailyUsage(
   userId: string
 ): Promise<DailyUsage & { date: string }> {
   try {
+    // Check if DATABASE_URL is configured before attempting query
+    if (!process.env.DATABASE_URL) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dateStr = today.toISOString().split('T')[0];
+      return {
+        chat_messages: 0,
+        plan_generations: 0,
+        total_cost_usd: 0,
+        date: dateStr,
+      };
+    }
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateStr = today.toISOString().split('T')[0];
@@ -208,9 +270,13 @@ export async function getUserDailyUsage(
       total_cost_usd: 0,
       date: dateStr,
     };
-    } catch (error) {
-      // If database query fails, return default usage
+  } catch (error: any) {
+    // If database query fails, return default usage
+    if (error.message?.includes('does not exist') || error.code === '42P01') {
+      logger.debug('Daily usage table does not exist, returning default');
+    } else {
       logger.error('Error getting user daily usage, returning default:', error);
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateStr = today.toISOString().split('T')[0];

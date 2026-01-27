@@ -29,6 +29,11 @@ export async function trackUsage(
   outputTokens: number
 ): Promise<void> {
   try {
+    // Check if DATABASE_URL is configured before attempting query
+    if (!process.env.DATABASE_URL) {
+      return; // Silently skip if database not configured
+    }
+    
     const cost = calculateCost(inputTokens, outputTokens);
     const totalTokens = inputTokens + outputTokens;
     
@@ -62,9 +67,13 @@ export async function trackUsage(
         total_requests = daily_costs.total_requests + 1,
         updated_at = NOW()
     `;
-  } catch (error) {
+  } catch (error: any) {
     // If database query fails, log but don't throw (non-critical for functionality)
-    logger.error('Error tracking usage (non-critical):', error);
+    if (error.message?.includes('does not exist') || error.code === '42P01') {
+      logger.debug('Usage tracking tables do not exist, skipping tracking');
+    } else {
+      logger.error('Error tracking usage (non-critical):', error);
+    }
   }
 }
 
@@ -73,6 +82,11 @@ export async function trackUsage(
  */
 export async function getTodayGlobalCost(): Promise<number> {
   try {
+    // Check if DATABASE_URL is configured before attempting query
+    if (!process.env.DATABASE_URL) {
+      return 0;
+    }
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateStr = today.toISOString().split('T')[0];
@@ -84,9 +98,13 @@ export async function getTodayGlobalCost(): Promise<number> {
     `;
     
     return result?.total_cost_usd || 0;
-  } catch (error) {
+  } catch (error: any) {
     // If database query fails, return 0 (allow requests)
-    logger.error('Error getting today global cost, returning 0:', error);
+    if (error.message?.includes('does not exist') || error.code === '42P01') {
+      logger.debug('Daily costs table does not exist, returning 0');
+    } else {
+      logger.error('Error getting today global cost, returning 0:', error);
+    }
     return 0;
   }
 }
