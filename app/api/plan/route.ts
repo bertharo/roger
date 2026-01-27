@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     // Try to load Strava data first
     let runs: Run[] = [];
     let hasStravaData = false;
+    let assessmentData: FitnessAssessment | undefined = undefined;
     
     try {
       let userId: string | null = null;
