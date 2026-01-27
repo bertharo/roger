@@ -157,9 +157,14 @@ export default function ChatPage() {
         setRuns(runsData);
         
         // Load plan and 12-week plan in parallel
+        // Don't pass runs if they're mock data - let API check for fitness assessment
+        const mockRuns = castMockRuns(mockData.runs);
+        const mockRunIds = new Set(mockRuns.map((r: Run) => r.id));
+        const isMockData = runsData.length > 0 && runsData.every((r: Run) => mockRunIds.has(r.id));
+        
         await Promise.all([
-          loadPlan(runsData, goalData),
-          loadTwelveWeekPlan(goalData, runsData),
+          loadPlan(isMockData ? undefined : runsData, goalData),
+          loadTwelveWeekPlan(goalData, isMockData ? [] : runsData),
         ]);
       } catch (error) {
         logger.error('Error during initialization:', error);
@@ -423,9 +428,10 @@ export default function ChatPage() {
   const handleAssessmentComplete = async (assessment: FitnessAssessment) => {
     setShowAssessmentPrompt(false);
     showToast.success('Fitness assessment saved! Your plan will be updated.');
-    // Reload plan - don't pass runs, let API check for fitness assessment
+    // Reload both weekly and 12-week plans - don't pass runs, let API check for fitness assessment
     const goalData = await loadGoalData();
-    await loadPlan(undefined, goalData); // Pass undefined to let API check for assessment
+    // Reload 12-week plan first (which will also load the current week)
+    await loadTwelveWeekPlan(goalData, []); // Pass empty array to let API check for assessment
   };
 
   const handleAssessmentDismiss = () => {
