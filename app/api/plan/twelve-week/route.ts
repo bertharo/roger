@@ -73,61 +73,86 @@ export async function POST(request: NextRequest) {
           try {
             // Check if DATABASE_URL is configured before attempting query
             if (process.env.DATABASE_URL && userId) {
-              logger.debug('Checking for fitness assessment for 12-week plan, user:', userId);
-              const assessment = await queryOne<{
-                fitness_level: string;
-                weekly_mileage: number;
-                days_per_week: number;
-                easy_pace_min_per_mile: number | null;
-                recent_running_experience: string;
-                longest_run_miles: number | null;
-                completed_at: string;
-              }>`
-                SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
-                 recent_running_experience, longest_run_miles, completed_at
-                 FROM fitness_assessments 
-                 WHERE user_id = ${userId} 
-                 ORDER BY completed_at DESC 
-                 LIMIT 1
-              `;
-              
-              if (assessment) {
-                logger.info('Found fitness assessment for 12-week plan, converting to runs:', {
-                  fitnessLevel: assessment.fitness_level,
-                  weeklyMileage: assessment.weekly_mileage,
+              logger.info('Checking for fitness assessment for 12-week plan, userId:', userId);
+              try {
+                const assessment = await queryOne<{
+                  fitness_level: string;
+                  weekly_mileage: number;
+                  days_per_week: number;
+                  easy_pace_min_per_mile: number | null;
+                  recent_running_experience: string;
+                  longest_run_miles: number | null;
+                  completed_at: string;
+                }>`
+                  SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
+                   recent_running_experience, longest_run_miles, completed_at
+                   FROM fitness_assessments 
+                   WHERE user_id = ${userId} 
+                   ORDER BY completed_at DESC 
+                   LIMIT 1
+                `;
+                
+                if (assessment) {
+                  logger.info('Found fitness assessment for 12-week plan, converting to runs:', {
+                    fitnessLevel: assessment.fitness_level,
+                    weeklyMileage: assessment.weekly_mileage,
+                    userId: userId,
+                  });
+                  const assessmentData = {
+                    fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
+                    weeklyMileage: assessment.weekly_mileage,
+                    daysPerWeek: assessment.days_per_week,
+                    easyPaceMinPerMile: assessment.easy_pace_min_per_mile ?? undefined,
+                    recentRunningExperience: assessment.recent_running_experience as 'none' | 'some' | 'regular',
+                    longestRunMiles: assessment.longest_run_miles ?? undefined,
+                    completedAt: assessment.completed_at,
+                  };
+                  runs = assessmentToRuns(assessmentData);
+                  hasRealData = true;
+                  logger.info(`Using fitness assessment data for 12-week plan generation - generated ${runs.length} runs`);
+                } else {
+                  logger.warn('No fitness assessment found in database for 12-week plan, userId:', userId);
+                }
+              } catch (queryError: any) {
+                logger.error('Database query error when checking fitness assessment:', {
+                  error: queryError.message,
+                  code: queryError.code,
+                  userId: userId,
                 });
-                const assessmentData = {
-                  fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
-                  weeklyMileage: assessment.weekly_mileage,
-                  daysPerWeek: assessment.days_per_week,
-                  easyPaceMinPerMile: assessment.easy_pace_min_per_mile ?? undefined,
-                  recentRunningExperience: assessment.recent_running_experience as 'none' | 'some' | 'regular',
-                  longestRunMiles: assessment.longest_run_miles ?? undefined,
-                  completedAt: assessment.completed_at,
-                };
-                runs = assessmentToRuns(assessmentData);
-                hasRealData = true;
-                logger.info(`Using fitness assessment data for 12-week plan generation - generated ${runs.length} runs`);
-              } else {
-                logger.debug('No fitness assessment found for 12-week plan, user:', userId);
+                throw queryError; // Re-throw to be caught by outer catch
               }
             } else {
-              logger.debug('Skipping fitness assessment check for 12-week plan - DATABASE_URL or userId missing');
+              logger.warn('Skipping fitness assessment check for 12-week plan - DATABASE_URL:', !!process.env.DATABASE_URL, 'userId:', userId);
             }
           } catch (dbError: any) {
             if (dbError.message?.includes('does not exist') || dbError.code === '42P01') {
-              logger.debug('Fitness assessments table does not exist');
+              logger.warn('Fitness assessments table does not exist - database may need migration');
             } else {
-              logger.error('Error loading fitness assessment for 12-week plan:', dbError);
+              logger.error('Error loading fitness assessment for 12-week plan:', {
+                error: dbError.message,
+                code: dbError.code,
+                stack: dbError.stack,
+              });
             }
           }
         }
         
         // No mock data fallback - return error if no data
         if (!hasRealData && runs.length === 0) {
-          logger.warn('No run data available for 12-week plan - no Strava connection or fitness assessment');
+          logger.warn('No run data available for 12-week plan - no Strava connection or fitness assessment', {
+            hasStravaData,
+            userId,
+            hasDatabaseUrl: !!process.env.DATABASE_URL,
+          });
           return Response.json(
-            { error: 'No run data available. Please connect Strava or complete a fitness assessment.' },
+            { 
+              error: 'No run data available. Please connect Strava or complete a fitness assessment.',
+              debug: {
+                hasStravaData,
+                userId,
+                hasDatabaseUrl: !!process.env.DATABASE_URL,
+              }
+            },
             { status: 400 }
           );
         }

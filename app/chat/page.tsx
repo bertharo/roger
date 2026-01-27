@@ -505,8 +505,13 @@ export default function ChatPage() {
       
       try {
         logger.info('Reloading plans after assessment completion');
-        // Reload 12-week plan first (which will also load the current week)
-        await loadTwelveWeekPlan(goalData, []); // Pass empty array to let API check for assessment
+        // Convert assessment to runs immediately to avoid database query race condition
+        const { assessmentToRuns } = await import('@/lib/fitness/assessmentToRuns');
+        const assessmentRuns = assessmentToRuns(assessment);
+        logger.info(`Generated ${assessmentRuns.length} runs from assessment`);
+        
+        // Reload 12-week plan with assessment runs directly
+        await loadTwelveWeekPlan(goalData, assessmentRuns);
         logger.info('Plan reloaded after assessment completion');
       } catch (error) {
         logger.error('Error reloading plan after assessment:', error);
