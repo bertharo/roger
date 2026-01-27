@@ -462,28 +462,59 @@ export default function ChatPage() {
     );
   }
 
-  const handleAssessmentComplete = async (assessment: FitnessAssessment) => {
+  const handleAssessmentComplete = async (assessment: FitnessAssessment, savedSuccessfully: boolean) => {
     setShowAssessmentPrompt(false);
-    showToast.success('Fitness assessment saved! Your plan will be updated.');
     
-    // Wait a moment for the database to commit the assessment
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Reload runs first to ensure we have the latest state
-    const freshRuns = await loadStravaRuns();
-    setRuns(freshRuns);
-    
-    // Reload both weekly and 12-week plans - don't pass runs, let API check for fitness assessment
-    const goalData = await loadGoalData();
-    
-    try {
-      logger.info('Reloading plans after assessment completion');
-      // Reload 12-week plan first (which will also load the current week)
-      await loadTwelveWeekPlan(goalData, []); // Pass empty array to let API check for assessment
-      logger.info('Plan reloaded after assessment completion');
-    } catch (error) {
-      logger.error('Error reloading plan after assessment:', error);
-      showToast.error('Failed to reload plan. Please refresh the page.');
+    if (savedSuccessfully) {
+      showToast.success('Fitness assessment saved! Your plan will be updated.');
+      
+      // Wait a moment for the database to commit the assessment
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Verify the assessment was saved by checking the API
+      let verified = false;
+      try {
+        const verifyResponse = await fetch('/api/fitness-assessment');
+        if (verifyResponse.ok) {
+          const verifyData = await verifyResponse.json();
+          if (verifyData.fitnessLevel) {
+            verified = true;
+            logger.info('Assessment verified in database');
+          }
+        }
+      } catch (e) {
+        logger.warn('Could not verify assessment, proceeding anyway:', e);
+      }
+      
+      if (!verified) {
+        logger.warn('Assessment not found in database yet, waiting longer...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      // Reload runs first to ensure we have the latest state
+      const freshRuns = await loadStravaRuns();
+      setRuns(freshRuns);
+      
+      // Reload both weekly and 12-week plans - don't pass runs, let API check for fitness assessment
+      const goalData = await loadGoalData();
+      
+      if (!goalData) {
+        showToast.error('Please set your race goal first in settings.');
+        return;
+      }
+      
+      try {
+        logger.info('Reloading plans after assessment completion');
+        // Reload 12-week plan first (which will also load the current week)
+        await loadTwelveWeekPlan(goalData, []); // Pass empty array to let API check for assessment
+        logger.info('Plan reloaded after assessment completion');
+      } catch (error) {
+        logger.error('Error reloading plan after assessment:', error);
+        showToast.error('Failed to reload plan. Please refresh the page.');
+      }
+    } else {
+      // Saved to localStorage only
+      showToast.success('Fitness assessment saved locally! Please refresh the page to generate your plan.');
     }
   };
 

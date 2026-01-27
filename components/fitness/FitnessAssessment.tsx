@@ -6,7 +6,7 @@ import { showToast } from '@/lib/utils/toast';
 import { logger } from '@/lib/utils/logger';
 
 interface FitnessAssessmentProps {
-  onComplete: (assessment: FitnessAssessment) => void;
+  onComplete: (assessment: FitnessAssessment, savedSuccessfully: boolean) => void;
   onSkip?: () => void;
 }
 
@@ -50,6 +50,7 @@ export function FitnessAssessment({ onComplete, onSkip }: FitnessAssessmentProps
     };
 
     // Save to database
+    let savedSuccessfully = false;
     try {
       const response = await fetch('/api/fitness-assessment', {
         method: 'POST',
@@ -59,9 +60,14 @@ export function FitnessAssessment({ onComplete, onSkip }: FitnessAssessmentProps
       });
 
       if (response.ok) {
-        logger.info('Fitness assessment saved');
+        const result = await response.json();
+        logger.info('Fitness assessment saved to database:', result);
+        savedSuccessfully = true;
+        // Also save to localStorage as backup
+        localStorage.setItem('fitness_assessment', JSON.stringify(completeAssessment));
       } else {
-        logger.warn('Failed to save assessment to database, using localStorage');
+        const errorData = await response.json().catch(() => ({}));
+        logger.warn('Failed to save assessment to database:', errorData);
         localStorage.setItem('fitness_assessment', JSON.stringify(completeAssessment));
       }
     } catch (error) {
@@ -69,7 +75,8 @@ export function FitnessAssessment({ onComplete, onSkip }: FitnessAssessmentProps
       localStorage.setItem('fitness_assessment', JSON.stringify(completeAssessment));
     }
 
-    onComplete(completeAssessment);
+    // Pass the saved status to the completion handler
+    onComplete(completeAssessment, savedSuccessfully);
   };
 
   return (

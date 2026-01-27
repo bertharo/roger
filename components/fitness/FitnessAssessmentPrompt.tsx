@@ -5,7 +5,7 @@ import { FitnessAssessment } from '@/lib/types';
 import { FitnessAssessment as FitnessAssessmentComponent } from './FitnessAssessment';
 
 interface FitnessAssessmentPromptProps {
-  onComplete: (assessment: FitnessAssessment) => void;
+  onComplete: (assessment: FitnessAssessment, savedSuccessfully: boolean) => void;
   onDismiss: () => void;
 }
 
@@ -15,8 +15,8 @@ export function FitnessAssessmentPrompt({ onComplete, onDismiss }: FitnessAssess
   if (showAssessment) {
     return (
       <FitnessAssessmentComponent
-        onComplete={(assessment) => {
-          onComplete(assessment);
+        onComplete={(assessment, savedSuccessfully) => {
+          onComplete(assessment, savedSuccessfully);
           setShowAssessment(false);
         }}
         onSkip={() => {
