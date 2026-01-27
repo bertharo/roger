@@ -59,14 +59,31 @@ export function generateTwelveWeekPlan(
   }
   
   // Calculate starting mileage
-  // Don't exceed current fitness by more than 10% in first week
+  // For true beginners (0 miles/week), start very conservatively
+  // For others, increase by max 10% from current, but respect reasonable minimums
   const fitnessLevel = assessment?.fitnessLevel || 'intermediate';
-  const minStartingMiles = fitnessLevel === 'beginner' ? 10 : fitnessLevel === 'intermediate' ? 15 : 20;
   
-  const startingMiles = Math.min(
-    Math.max(recentWeeklyMiles * 1.1, minStartingMiles), // At least 10% increase from current, but respect minimums
-    peakWeeklyMiles * 0.6 // But not more than 60% of peak
-  );
+  let startingMiles: number;
+  if (recentWeeklyMiles === 0) {
+    // True beginner - start very conservatively based on fitness level
+    if (fitnessLevel === 'beginner') {
+      startingMiles = 5; // Start with 5 miles/week for complete beginners
+    } else if (fitnessLevel === 'intermediate') {
+      startingMiles = 8; // Intermediate but no recent running - start at 8
+    } else {
+      startingMiles = 12; // Advanced but no recent running - start at 12
+    }
+  } else {
+    // Has some running base - increase conservatively (max 10%)
+    const minStartingMiles = fitnessLevel === 'beginner' ? 8 : fitnessLevel === 'intermediate' ? 12 : 18;
+    startingMiles = Math.min(
+      Math.max(recentWeeklyMiles * 1.1, minStartingMiles), // At least 10% increase from current, but respect minimums
+      peakWeeklyMiles * 0.6 // But not more than 60% of peak
+    );
+  }
+  
+  // Ensure we don't exceed peak by more than 60% in first week
+  startingMiles = Math.min(startingMiles, peakWeeklyMiles * 0.6);
   
   // Start 12 weeks before race, but ensure we start on a Monday
   const startDate = new Date(raceDate);
