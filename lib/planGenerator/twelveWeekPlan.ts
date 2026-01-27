@@ -38,23 +38,36 @@ export function generateTwelveWeekPlan(
   }
   
   // Calculate target peak weekly mileage based on goal distance
+  // More realistic mileage targets that align with common training plans
   let peakWeeklyMiles: number;
   if (goal.distance >= 26) {
-    peakWeeklyMiles = 55; // Marathon
+    // Marathon: 35-50 miles/week peak (depending on fitness)
+    peakWeeklyMiles = assessment?.fitnessLevel === 'beginner' ? 35 : 
+                      assessment?.fitnessLevel === 'advanced' ? 50 : 42;
   } else if (goal.distance >= 13) {
-    peakWeeklyMiles = 40; // Half marathon
+    // Half marathon: 20-30 miles/week peak (much more reasonable)
+    peakWeeklyMiles = assessment?.fitnessLevel === 'beginner' ? 20 : 
+                      assessment?.fitnessLevel === 'advanced' ? 30 : 25;
   } else if (goal.distance >= 6) {
-    peakWeeklyMiles = 30; // 10K
+    // 10K: 15-25 miles/week peak
+    peakWeeklyMiles = assessment?.fitnessLevel === 'beginner' ? 15 : 
+                      assessment?.fitnessLevel === 'advanced' ? 25 : 20;
   } else {
-    peakWeeklyMiles = 25; // 5K
+    // 5K: 12-20 miles/week peak
+    peakWeeklyMiles = assessment?.fitnessLevel === 'beginner' ? 12 : 
+                      assessment?.fitnessLevel === 'advanced' ? 20 : 16;
   }
   
-  // Adjust peak based on fitness level
-  if (assessment) {
-    if (assessment.fitnessLevel === 'beginner') {
-      peakWeeklyMiles = Math.round(peakWeeklyMiles * 0.8); // 20% lower for beginners
-    } else if (assessment.fitnessLevel === 'advanced') {
-      peakWeeklyMiles = Math.round(peakWeeklyMiles * 1.15); // 15% higher for advanced
+  // If no assessment, use intermediate defaults
+  if (!assessment) {
+    if (goal.distance >= 26) {
+      peakWeeklyMiles = 42; // Marathon
+    } else if (goal.distance >= 13) {
+      peakWeeklyMiles = 25; // Half marathon
+    } else if (goal.distance >= 6) {
+      peakWeeklyMiles = 20; // 10K
+    } else {
+      peakWeeklyMiles = 16; // 5K
     }
   }
   
