@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { generateWeeklyPlan } from '@/lib/planGenerator';
-import { Run, Goal } from '@/lib/types';
+import { Run, Goal, FitnessAssessment } from '@/lib/types';
 import { getUserId } from '@/lib/auth/getSession';
 import { checkPlanRateLimit, incrementPlanUsage } from '@/lib/rateLimit';
 import { checkGlobalCostLimit } from '@/lib/rateLimit';
