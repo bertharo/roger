@@ -22,7 +22,13 @@ export async function GET(request: NextRequest) {
     let hasStravaData = false;
     
     try {
-      const userId = await getUserId();
+      let userId: string | null = null;
+      try {
+        userId = await getUserId();
+      } catch (e) {
+        // getUserId can fail if no session or database issues - that's okay for GET
+        logger.debug('Could not get user ID (non-critical for GET):', e);
+      }
       
       // Try database first (for logged-in users)
       if (userId) {
@@ -86,38 +92,44 @@ export async function GET(request: NextRequest) {
       // If no Strava data, try fitness assessment
       if (!hasStravaData && userId) {
         try {
-          const assessment = await queryOne<{
-            fitness_level: string;
-            weekly_mileage: number;
-            days_per_week: number;
-            easy_pace_min_per_mile: number | null;
-            recent_running_experience: string;
-            longest_run_miles: number | null;
-            completed_at: string;
-          }>`
-            SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
-             recent_running_experience, longest_run_miles, completed_at
-             FROM fitness_assessments 
-             WHERE user_id = ${userId} 
-             ORDER BY completed_at DESC 
-             LIMIT 1
-          `;
-          
-          if (assessment) {
-            const assessmentData = {
-              fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
-              weeklyMileage: assessment.weekly_mileage,
-              daysPerWeek: assessment.days_per_week,
-              easyPaceMinPerMile: assessment.easy_pace_min_per_mile ?? undefined,
-              recentRunningExperience: assessment.recent_running_experience as 'none' | 'some' | 'regular',
-              longestRunMiles: assessment.longest_run_miles ?? undefined,
-              completedAt: assessment.completed_at,
-            };
-            runs = assessmentToRuns(assessmentData);
-            logger.info('Using fitness assessment data for plan generation');
+          // Check if DATABASE_URL is configured before attempting query
+          if (process.env.DATABASE_URL) {
+            const assessment = await queryOne<{
+              fitness_level: string;
+              weekly_mileage: number;
+              days_per_week: number;
+              easy_pace_min_per_mile: number | null;
+              recent_running_experience: string;
+              longest_run_miles: number | null;
+              completed_at: string;
+            }>`
+              SELECT fitness_level, weekly_mileage, days_per_week, easy_pace_min_per_mile, 
+               recent_running_experience, longest_run_miles, completed_at
+               FROM fitness_assessments 
+               WHERE user_id = ${userId} 
+               ORDER BY completed_at DESC 
+               LIMIT 1
+            `;
+            
+            if (assessment) {
+              const assessmentData = {
+                fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
+                weeklyMileage: assessment.weekly_mileage,
+                daysPerWeek: assessment.days_per_week,
+                easyPaceMinPerMile: assessment.easy_pace_min_per_mile ?? undefined,
+                recentRunningExperience: assessment.recent_running_experience as 'none' | 'some' | 'regular',
+                longestRunMiles: assessment.longest_run_miles ?? undefined,
+                completedAt: assessment.completed_at,
+              };
+              runs = assessmentToRuns(assessmentData);
+              logger.info('Using fitness assessment data for plan generation');
+            }
           }
         } catch (dbError: any) {
-          if (!dbError.message?.includes('does not exist')) {
+          // Silently handle database errors - table might not exist or DB not configured
+          if (dbError.message?.includes('does not exist') || dbError.message?.includes('DATABASE_URL')) {
+            logger.debug('Fitness assessments table not available:', dbError.message);
+          } else {
             logger.error('Error loading fitness assessment:', dbError);
           }
         }
@@ -158,15 +170,40 @@ export async function GET(request: NextRequest) {
       // Error loading goal, use mock data
     }
     
+    // Validate goal before generating plan
+    if (!goal || !goal.raceDate || !goal.distance || !goal.targetTimeMinutes) {
+      logger.error('Invalid goal data:', goal);
+      return Response.json(
+        { error: 'Invalid goal data. Please set your race goal in settings.' },
+        { status: 400 }
+      );
+    }
+    
     // Get most recent 5 runs for pace inference
     const sortedRuns = [...runs].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
     const recentRuns = sortedRuns.slice(0, 5);
     
-    const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined);
-    
-    return Response.json(plan);
+    try {
+      const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined);
+      
+      if (!plan || !plan.days || plan.days.length === 0) {
+        logger.error('Plan generation returned invalid plan');
+        return Response.json(
+          { error: 'Failed to generate valid plan' },
+          { status: 500 }
+        );
+      }
+      
+      return Response.json(plan);
+    } catch (planError) {
+      logger.error('Error in generateWeeklyPlan:', planError);
+      return Response.json(
+        { error: 'Failed to generate plan. Please check your goal settings.' },
+        { status: 500 }
+      );
+    }
     } catch (error) {
       logger.error('Error generating plan:', error);
     return Response.json(
