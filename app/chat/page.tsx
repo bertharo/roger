@@ -433,10 +433,26 @@ export default function ChatPage() {
   const handleAssessmentComplete = async (assessment: FitnessAssessment) => {
     setShowAssessmentPrompt(false);
     showToast.success('Fitness assessment saved! Your plan will be updated.');
+    
+    // Wait a moment for the database to commit the assessment
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Reload runs first to ensure we have the latest state
+    const freshRuns = await loadStravaRuns();
+    setRuns(freshRuns);
+    
     // Reload both weekly and 12-week plans - don't pass runs, let API check for fitness assessment
     const goalData = await loadGoalData();
-    // Reload 12-week plan first (which will also load the current week)
-    await loadTwelveWeekPlan(goalData, []); // Pass empty array to let API check for assessment
+    
+    try {
+      logger.info('Reloading plans after assessment completion');
+      // Reload 12-week plan first (which will also load the current week)
+      await loadTwelveWeekPlan(goalData, []); // Pass empty array to let API check for assessment
+      logger.info('Plan reloaded after assessment completion');
+    } catch (error) {
+      logger.error('Error reloading plan after assessment:', error);
+      showToast.error('Failed to reload plan. Please refresh the page.');
+    }
   };
 
   const handleAssessmentDismiss = () => {

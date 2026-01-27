@@ -80,7 +80,8 @@ export async function POST(request: NextRequest) {
         if (!hasStravaData) {
           try {
             // Check if DATABASE_URL is configured before attempting query
-            if (process.env.DATABASE_URL) {
+            if (process.env.DATABASE_URL && userId) {
+              logger.debug('Checking for fitness assessment for 12-week plan, user:', userId);
               const assessment = await queryOne<{
                 fitness_level: string;
                 weekly_mileage: number;
@@ -99,6 +100,10 @@ export async function POST(request: NextRequest) {
               `;
               
               if (assessment) {
+                logger.info('Found fitness assessment for 12-week plan, converting to runs:', {
+                  fitnessLevel: assessment.fitness_level,
+                  weeklyMileage: assessment.weekly_mileage,
+                });
                 const assessmentData = {
                   fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
                   weeklyMileage: assessment.weekly_mileage,
@@ -110,14 +115,18 @@ export async function POST(request: NextRequest) {
                 };
                 runs = assessmentToRuns(assessmentData);
                 hasRealData = true;
-                logger.info('Using fitness assessment data for 12-week plan generation');
+                logger.info(`Using fitness assessment data for 12-week plan generation - generated ${runs.length} runs`);
+              } else {
+                logger.debug('No fitness assessment found for 12-week plan, user:', userId);
               }
+            } else {
+              logger.debug('Skipping fitness assessment check for 12-week plan - DATABASE_URL or userId missing');
             }
           } catch (dbError: any) {
             if (dbError.message?.includes('does not exist') || dbError.code === '42P01') {
               logger.debug('Fitness assessments table does not exist');
             } else {
-              logger.error('Error loading fitness assessment:', dbError);
+              logger.error('Error loading fitness assessment for 12-week plan:', dbError);
             }
           }
         }

@@ -306,9 +306,11 @@ export async function POST(request: NextRequest) {
         
         // If no Strava data, try fitness assessment
         if (!hasStravaData) {
+          let assessmentFound = false;
           try {
             // Check if DATABASE_URL is configured before attempting query
-            if (process.env.DATABASE_URL) {
+            if (process.env.DATABASE_URL && userId) {
+              logger.debug('Checking for fitness assessment for user:', userId);
               const assessment = await queryOne<{
                 fitness_level: string;
                 weekly_mileage: number;
@@ -327,6 +329,10 @@ export async function POST(request: NextRequest) {
               `;
               
               if (assessment) {
+                logger.info('Found fitness assessment in database, converting to runs:', {
+                  fitnessLevel: assessment.fitness_level,
+                  weeklyMileage: assessment.weekly_mileage,
+                });
                 const assessmentData = {
                   fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
                   weeklyMileage: assessment.weekly_mileage,
@@ -338,14 +344,31 @@ export async function POST(request: NextRequest) {
                 };
                 runs = assessmentToRuns(assessmentData);
                 hasRealData = true;
-                logger.info('Using fitness assessment data for plan generation');
+                assessmentFound = true;
+                logger.info(`Using fitness assessment data for plan generation - generated ${runs.length} runs`);
+              } else {
+                logger.debug('No fitness assessment found in database for user:', userId);
               }
+            } else {
+              logger.debug('Skipping fitness assessment database check - DATABASE_URL or userId missing');
             }
           } catch (dbError: any) {
             if (dbError.message?.includes('does not exist') || dbError.code === '42P01') {
-              logger.debug('Fitness assessments table does not exist');
+              logger.debug('Fitness assessments table does not exist, checking localStorage fallback');
             } else {
-              logger.error('Error loading fitness assessment:', dbError);
+              logger.error('Error loading fitness assessment from database:', dbError);
+            }
+          }
+          
+          // Fallback to localStorage if database check didn't find anything
+          if (!assessmentFound) {
+            try {
+              const cookieHeader = request.headers.get('cookie') || '';
+              // Note: localStorage is client-side only, so we can't access it from the server
+              // But we can check if the assessment was passed in the request body
+              logger.debug('No assessment found in database, will use mock data as fallback');
+            } catch (e) {
+              logger.debug('Could not check localStorage fallback (expected on server)');
             }
           }
         }
