@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
     const isMockData = providedRuns && providedRuns.length > 0 && 
       providedRuns.every((r: Run) => mockRunIds.has(r.id));
     
-    // If no runs provided or runs are mock data, try to load real data
-    if (!providedRuns || providedRuns.length === 0 || isMockData) {
+    // If no runs provided, runs are empty, or runs are mock data, try to load real data
+    if (!providedRuns || (Array.isArray(providedRuns) && providedRuns.length === 0) || isMockData) {
       // Try to load Strava data
       try {
         const cookieHeader = request.headers.get('cookie') || '';
@@ -132,10 +132,10 @@ export async function POST(request: NextRequest) {
           runs = castMockRuns(mockData.runs);
         }
       }
-    } else {
-      // Provided runs are real data (not mock)
-      hasRealData = true;
+    } else if (providedRuns && providedRuns.length > 0) {
+      // Provided runs are real data (not mock and not empty)
       runs = providedRuns;
+      hasRealData = true;
     }
     
     // Use provided goal or load from cookies

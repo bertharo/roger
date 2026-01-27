@@ -39,7 +39,7 @@ export default function ChatPage() {
   const [hasStravaData, setHasStravaData] = useState(false);
 
   const loadStravaRuns = useCallback(async (): Promise<Run[]> => {
-    let runs = castMockRuns(mockData.runs);
+    let runs: Run[] = [];
     let hasData = false;
     try {
       const stravaResponse = await fetch('/api/strava/activities');
@@ -52,7 +52,7 @@ export default function ChatPage() {
       }
     } catch (error) {
       logger.error('Error loading Strava activities:', error);
-      // Use mock data as fallback
+      // Don't return mock data - let API check for fitness assessment
     }
     setHasStravaData(hasData);
     
@@ -65,6 +65,9 @@ export default function ChatPage() {
           if (!data.fitnessLevel) {
             // No assessment, show prompt
             setShowAssessmentPrompt(true);
+          } else {
+            // Assessment exists, don't show prompt
+            setShowAssessmentPrompt(false);
           }
         }
       } catch (error) {
@@ -72,10 +75,15 @@ export default function ChatPage() {
         const saved = localStorage.getItem('fitness_assessment');
         if (!saved) {
           setShowAssessmentPrompt(true);
+        } else {
+          setShowAssessmentPrompt(false);
         }
       }
+    } else {
+      setShowAssessmentPrompt(false);
     }
     
+    // Return empty array if no Strava data - let API check for fitness assessment
     return runs;
   }, []);
 
@@ -157,14 +165,10 @@ export default function ChatPage() {
         setRuns(runsData);
         
         // Load plan and 12-week plan in parallel
-        // Don't pass runs if they're mock data - let API check for fitness assessment
-        const mockRuns = castMockRuns(mockData.runs);
-        const mockRunIds = new Set(mockRuns.map((r: Run) => r.id));
-        const isMockData = runsData.length > 0 && runsData.every((r: Run) => mockRunIds.has(r.id));
-        
+        // If no Strava data, pass empty array to let API check for fitness assessment
         await Promise.all([
-          loadPlan(isMockData ? undefined : runsData, goalData),
-          loadTwelveWeekPlan(goalData, isMockData ? [] : runsData),
+          loadPlan(runsData.length > 0 ? runsData : undefined, goalData),
+          loadTwelveWeekPlan(goalData, runsData.length > 0 ? runsData : []),
         ]);
       } catch (error) {
         logger.error('Error during initialization:', error);
@@ -268,11 +272,12 @@ export default function ChatPage() {
         // Auto-select and load current week
         if (transformed[currentWeekIndex]) {
           setSelectedWeekIndex(currentWeekIndex);
-          await loadPlan(runsData, goalData, transformed[currentWeekIndex].weekStartISO);
+          // Pass undefined if no runs - let API check for fitness assessment
+          await loadPlan(runsData.length > 0 ? runsData : undefined, goalData, transformed[currentWeekIndex].weekStartISO);
         } else if (transformed[0]) {
           // Fallback to first week if current week not found
           setSelectedWeekIndex(0);
-          await loadPlan(runsData, goalData, transformed[0].weekStartISO);
+          await loadPlan(runsData.length > 0 ? runsData : undefined, goalData, transformed[0].weekStartISO);
         }
       }
     } catch (error) {
@@ -291,14 +296,14 @@ export default function ChatPage() {
 
   const loadPlan = useCallback(async (runs?: Run[], goalData?: any, weekStart?: string) => {
     try {
-      // Pass runs data to plan API if available
+      // Pass runs data to plan API if available, otherwise pass undefined to let API check for fitness assessment
       const response = await fetch('/api/plan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          runs: runs || castMockRuns(mockData.runs),
+          runs: runs, // Pass undefined if no runs - API will check for fitness assessment
           goal: goalData || mockData.goal,
           weekStart: weekStart, // Pass the week start date if provided
         }),
