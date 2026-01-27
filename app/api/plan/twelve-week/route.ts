@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateTwelveWeekPlan } from '@/lib/planGenerator/twelveWeekPlan';
-import { castMockRuns } from '@/lib/utils/typeHelpers';
 import { Run, Goal } from '@/lib/types';
 import { getUserId } from '@/lib/auth/getSession';
 import { logger } from '@/lib/utils/logger';
 import { assessmentToRuns } from '@/lib/fitness/assessmentToRuns';
 import { queryOne } from '@/lib/db/client';
-import mockData from '@/data/stravaMock.json';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,14 +28,8 @@ export async function POST(request: NextRequest) {
     let hasStravaData = false;
     let hasRealData = false;
     
-    // Check if provided runs are mock data by comparing IDs with known mock data IDs
-    const mockRuns = castMockRuns(mockData.runs);
-    const mockRunIds = new Set(mockRuns.map((r: Run) => r.id));
-    const isMockData = providedRuns && providedRuns.length > 0 && 
-      providedRuns.every((r: Run) => mockRunIds.has(r.id));
-    
-    // If no runs provided, runs are empty, or runs are mock data, try to load real data
-    if (!providedRuns || (Array.isArray(providedRuns) && providedRuns.length === 0) || isMockData) {
+    // If no runs provided or runs are empty, try to load real data
+    if (!providedRuns || (Array.isArray(providedRuns) && providedRuns.length === 0)) {
       // Try to load Strava data
       try {
         const cookieHeader = request.headers.get('cookie') || '';
@@ -131,24 +123,29 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Final fallback to mock data only if we have no real data
+        // No mock data fallback - return error if no data
         if (!hasRealData && runs.length === 0) {
-          runs = castMockRuns(mockData.runs);
+          logger.warn('No run data available for 12-week plan - no Strava connection or fitness assessment');
+          return Response.json(
+            { error: 'No run data available. Please connect Strava or complete a fitness assessment.' },
+            { status: 400 }
+          );
         }
       } catch (e) {
-        logger.error('Error loading run data:', e);
-        if (!hasRealData) {
-          runs = castMockRuns(mockData.runs);
-        }
+        logger.error('Error loading run data for 12-week plan:', e);
+        return Response.json(
+          { error: 'Failed to load run data' },
+          { status: 500 }
+        );
       }
     } else if (providedRuns && providedRuns.length > 0) {
-      // Provided runs are real data (not mock and not empty)
+      // Provided runs are real data
       runs = providedRuns;
       hasRealData = true;
     }
     
     // Use provided goal or load from cookies
-    let goal: Goal = providedGoal || mockData.goal;
+    let goal: Goal | null = providedGoal || null;
     if (!providedGoal) {
       try {
         const cookieHeader = request.headers.get('cookie') || '';
@@ -172,6 +169,15 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         // Error loading goal
       }
+    }
+    
+    // Validate goal before generating plan
+    if (!goal || !goal.raceDate || !goal.distance || !goal.targetTimeMinutes) {
+      logger.warn('Invalid or missing goal data for 12-week plan');
+      return Response.json(
+        { error: 'Invalid goal data. Please set your race goal in settings.' },
+        { status: 400 }
+      );
     }
     
     // Get most recent 5 runs for pace inference

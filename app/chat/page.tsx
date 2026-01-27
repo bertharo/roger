@@ -13,7 +13,7 @@ import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { FitnessAssessmentPrompt } from '@/components/fitness/FitnessAssessmentPrompt';
 import { Run, FitnessAssessment } from '@/lib/types';
-import mockData from '@/data/stravaMock.json';
+// Mock data removed - app only uses real Strava data or fitness assessment
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -88,7 +88,7 @@ export default function ChatPage() {
   }, []);
 
   const loadGoalData = useCallback(async () => {
-    let goalData = mockData.goal; // Fallback to mock data
+    let goalData: any = null;
     
     // Try API first (database) - this is the source of truth
     try {
@@ -116,7 +116,7 @@ export default function ChatPage() {
     }
     
     // Fallback to localStorage if API didn't return a real goal
-    if (goalData === mockData.goal) {
+    if (!goalData) {
       try {
         const savedGoal = localStorage.getItem('user_goal');
         if (savedGoal) {
@@ -241,7 +241,7 @@ export default function ChatPage() {
         },
         body: JSON.stringify({
           runs: runs, // Pass undefined if no runs - API will check for fitness assessment
-          goal: goalData || mockData.goal,
+          goal: goalData, // Pass goal or null - API will validate
           weekStart: weekStart, // Pass the week start date if provided
         }),
       });
@@ -252,11 +252,26 @@ export default function ChatPage() {
         logger.debug('Plan loaded successfully');
         setPlan(transformed);
       } else {
-        throw new Error('Failed to load plan');
+        const errorData = await response.json().catch(() => ({ error: 'Failed to load plan' }));
+        logger.error('Failed to load plan:', errorData);
+        if (response.status === 400) {
+          // No data available - show assessment prompt if not already shown
+          const currentHasStravaData = runs && runs.length > 0;
+          if (!currentHasStravaData) {
+            setShowAssessmentPrompt(true);
+          }
+          showToast.error(errorData.error || 'No data available. Please connect Strava or complete a fitness assessment.');
+        } else {
+          showToast.error(errorData.error || 'Failed to load training plan');
+        }
+        throw new Error(errorData.error || 'Failed to load plan');
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to load plan:', error);
-      showToast.error('Failed to load training plan');
+      // Don't show toast again if we already showed it above
+      if (!error.message?.includes('No data available')) {
+        showToast.error('Failed to load training plan');
+      }
     }
   }, []);
   
@@ -315,7 +330,16 @@ export default function ChatPage() {
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         logger.error('Failed to load 12-week plan:', errorData);
-        showToast.error(`Failed to load 12-week plan: ${errorData.error || 'Unknown error'}`);
+        if (response.status === 400) {
+          // No data available - show assessment prompt if not already shown
+          const currentHasStravaData = runsData && runsData.length > 0;
+          if (!currentHasStravaData) {
+            setShowAssessmentPrompt(true);
+          }
+          showToast.error(errorData.error || 'No data available. Please connect Strava or complete a fitness assessment.');
+        } else {
+          showToast.error(`Failed to load 12-week plan: ${errorData.error || 'Unknown error'}`);
+        }
       }
     } catch (error) {
       logger.error('Failed to load 12-week plan:', error);
