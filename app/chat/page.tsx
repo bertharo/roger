@@ -231,6 +231,35 @@ export default function ChatPage() {
     };
   }, [loadStravaRuns, loadGoalData]);
   
+  const loadPlan = useCallback(async (runs?: Run[], goalData?: any, weekStart?: string) => {
+    try {
+      // Pass runs data to plan API if available, otherwise pass undefined to let API check for fitness assessment
+      const response = await fetch('/api/plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          runs: runs, // Pass undefined if no runs - API will check for fitness assessment
+          goal: goalData || mockData.goal,
+          weekStart: weekStart, // Pass the week start date if provided
+        }),
+      });
+      
+      if (response.ok) {
+        const planData = await response.json();
+        const transformed = transformPlanToDashboardFormat(planData);
+        logger.debug('Plan loaded successfully');
+        setPlan(transformed);
+      } else {
+        throw new Error('Failed to load plan');
+      }
+    } catch (error) {
+      logger.error('Failed to load plan:', error);
+      showToast.error('Failed to load training plan');
+    }
+  }, []);
+  
   const loadTwelveWeekPlan = useCallback(async (goalData: any, runsData: Run[]) => {
     try {
       logger.debug('Loading 12-week plan with runsData length:', runsData.length);
@@ -300,35 +329,6 @@ export default function ChatPage() {
     // Create a new object to ensure React detects the change
     setPlan({ ...weekPlan });
     setExpandedDayIndex(null);
-  }, []);
-
-  const loadPlan = useCallback(async (runs?: Run[], goalData?: any, weekStart?: string) => {
-    try {
-      // Pass runs data to plan API if available, otherwise pass undefined to let API check for fitness assessment
-      const response = await fetch('/api/plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          runs: runs, // Pass undefined if no runs - API will check for fitness assessment
-          goal: goalData || mockData.goal,
-          weekStart: weekStart, // Pass the week start date if provided
-        }),
-      });
-      
-      if (response.ok) {
-        const planData = await response.json();
-        const transformed = transformPlanToDashboardFormat(planData);
-        logger.debug('Plan loaded successfully');
-        setPlan(transformed);
-      } else {
-        throw new Error('Failed to load plan');
-      }
-    } catch (error) {
-      logger.error('Failed to load plan:', error);
-      showToast.error('Failed to load training plan');
-    }
   }, []);
 
   const handleChatSend = async (message: string) => {
