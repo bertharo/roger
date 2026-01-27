@@ -1,4 +1,4 @@
-import { Run, PaceProfile, Goal } from '../types';
+import { Run, PaceProfile, Goal, FitnessAssessment } from '../types';
 
 /**
  * Calculate goal pace from target time and distance
@@ -8,11 +8,11 @@ export function calculateGoalPace(goal: Goal): number {
 }
 
 /**
- * Infer pace profile from the most recent 3-5 runs.
+ * Infer pace profile from the most recent 3-5 runs or fitness assessment.
  * This determines easy pace range and threshold pace.
  * Now also considers goal pace for progressive training.
  */
-export function inferPaceProfile(runs: Run[], goal?: Goal): PaceProfile {
+export function inferPaceProfile(runs: Run[], goal?: Goal, assessment?: FitnessAssessment): PaceProfile {
   // Sort by date, most recent first
   const sortedRuns = [...runs].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -22,7 +22,67 @@ export function inferPaceProfile(runs: Run[], goal?: Goal): PaceProfile {
   const recentRuns = sortedRuns.slice(0, 5);
   
   if (recentRuns.length === 0) {
-    // Default conservative paces if no data
+    // Use assessment data if available
+    if (assessment) {
+      let easyPace: number;
+      
+      if (assessment.easyPaceMinPerMile) {
+        easyPace = assessment.easyPaceMinPerMile;
+      } else {
+        // Estimate based on fitness level
+        switch (assessment.fitnessLevel) {
+          case 'beginner':
+            easyPace = 10.0 + (assessment.weeklyMileage < 10 ? 1.5 : 0);
+            break;
+          case 'intermediate':
+            easyPace = 8.5 + (assessment.weeklyMileage < 20 ? 0.5 : 0);
+            break;
+          case 'advanced':
+            easyPace = 7.0 + (assessment.weeklyMileage < 30 ? 0.5 : 0);
+            break;
+        }
+      }
+      
+      // Adjust based on recent running experience
+      if (assessment.recentRunningExperience === 'none') {
+        easyPace += 1.5;
+      } else if (assessment.recentRunningExperience === 'some') {
+        easyPace += 0.5;
+      }
+      
+      // Clamp to reasonable range
+      easyPace = Math.max(7.0, Math.min(14.0, easyPace));
+      
+      const easyPaceRange: [number, number] = [
+        Math.round(easyPace * 10) / 10,
+        Math.round((easyPace + 0.5) * 10) / 10,
+      ];
+      
+      // Calculate threshold pace from easy pace
+      const thresholdPace = Math.max(5.0, Math.min(12.0, easyPace - 0.75));
+      
+      // Adjust threshold toward goal pace if goal provided
+      if (goal) {
+        const goalPace = calculateGoalPace(goal);
+        if (goalPace < thresholdPace) {
+          // Goal is faster - start closer to current fitness but acknowledge goal
+          const adjustedThreshold = Math.max(goalPace + 0.3, thresholdPace * 0.95);
+          return {
+            easyPaceRange,
+            thresholdPace: Math.round(adjustedThreshold * 10) / 10,
+            fitnessTrend: 'stable',
+          };
+        }
+      }
+      
+      return {
+        easyPaceRange,
+        thresholdPace: Math.round(thresholdPace * 10) / 10,
+        fitnessTrend: 'stable',
+      };
+    }
+    
+    // Default conservative paces if no data and no assessment
     return {
       easyPaceRange: [9.0, 10.0],
       thresholdPace: 8.0,

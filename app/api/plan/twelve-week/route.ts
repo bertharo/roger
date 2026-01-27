@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateTwelveWeekPlan } from '@/lib/planGenerator/twelveWeekPlan';
-import { Run, Goal } from '@/lib/types';
+import { Run, Goal, FitnessAssessment } from '@/lib/types';
 import { getUserId } from '@/lib/auth/getSession';
 import { logger } from '@/lib/utils/logger';
 import { assessmentToRuns } from '@/lib/fitness/assessmentToRuns';
@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     let runs: Run[] = [];
     let hasStravaData = false;
     let hasRealData = false;
+    let assessmentData: FitnessAssessment | undefined = undefined;
     
     // If no runs provided or runs are empty, try to load real data
     if (!providedRuns || (Array.isArray(providedRuns) && providedRuns.length === 0)) {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
                     weeklyMileage: assessment.weekly_mileage,
                     userId: userId,
                   });
-                  const assessmentData = {
+                  assessmentData = {
                     fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
                     weeklyMileage: assessment.weekly_mileage,
                     daysPerWeek: assessment.days_per_week,
@@ -211,7 +212,7 @@ export async function POST(request: NextRequest) {
     );
     const recentRuns = sortedRuns.slice(0, 5);
     
-    const plans = generateTwelveWeekPlan(goal, recentRuns);
+    const plans = generateTwelveWeekPlan(goal, recentRuns, assessmentData);
     
     return Response.json(plans);
       } catch (error) {

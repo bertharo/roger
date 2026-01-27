@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
             `;
             
             if (assessment) {
-              const assessmentData = {
+              assessmentData = {
                 fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
                 weeklyMileage: assessment.weekly_mileage,
                 daysPerWeek: assessment.days_per_week,
@@ -121,7 +121,6 @@ export async function GET(request: NextRequest) {
               };
               runs = assessmentToRuns(assessmentData);
               logger.info('Using fitness assessment data for plan generation');
-            }
           }
         } catch (dbError: any) {
           // Silently handle database errors - table might not exist or DB not configured
@@ -190,8 +189,15 @@ export async function GET(request: NextRequest) {
     );
     const recentRuns = sortedRuns.slice(0, 5);
     
+    // Calculate target weekly mileage if using assessment
+    let targetWeeklyMiles: number | undefined = undefined;
+    if (assessmentData && !hasStravaData) {
+      // Use assessment weekly mileage as starting point
+      targetWeeklyMiles = assessmentData.weeklyMileage;
+    }
+    
     try {
-      const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined);
+      const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined, assessmentData, targetWeeklyMiles);
       
       if (!plan || !plan.days || plan.days.length === 0) {
         logger.error('Plan generation returned invalid plan');
@@ -262,6 +268,7 @@ export async function POST(request: NextRequest) {
     let runs: Run[] = [];
     let hasStravaData = false;
     let hasRealData = false;
+    let assessmentData: FitnessAssessment | undefined = undefined;
     
     // If no runs provided or runs are empty, try to load real data
     if (!providedRuns || (Array.isArray(providedRuns) && providedRuns.length === 0)) {
@@ -332,7 +339,7 @@ export async function POST(request: NextRequest) {
                   fitnessLevel: assessment.fitness_level,
                   weeklyMileage: assessment.weekly_mileage,
                 });
-                const assessmentData = {
+                assessmentData = {
                   fitnessLevel: assessment.fitness_level as 'beginner' | 'intermediate' | 'advanced',
                   weeklyMileage: assessment.weekly_mileage,
                   daysPerWeek: assessment.days_per_week,
@@ -435,7 +442,14 @@ export async function POST(request: NextRequest) {
     );
     const recentRuns = sortedRuns.slice(0, 5);
     
-    const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined);
+    // Calculate target weekly mileage if using assessment
+    let targetWeeklyMiles: number | undefined = undefined;
+    if (assessmentData && !hasStravaData) {
+      // Use assessment weekly mileage as starting point
+      targetWeeklyMiles = assessmentData.weeklyMileage;
+    }
+    
+    const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined, assessmentData, targetWeeklyMiles);
     
     // Track plan generation usage
     await incrementPlanUsage(userId);

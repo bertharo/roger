@@ -1,32 +1,43 @@
-import { Goal, Run, WeeklyPlan } from '../types';
+import { Goal, Run, WeeklyPlan, FitnessAssessment } from '../types';
 import { generateWeeklyPlan, generateWeeklyPlanWithPaces } from './index';
 import { inferPaceProfile } from './paceInference';
 
 /**
  * Generate a 12-week training plan with progressive mileage
+ * 
+ * @param goal - Race goal (date, distance, target time)
+ * @param recentRuns - Recent run history (can be empty if using assessment)
+ * @param assessment - Optional fitness assessment (used when no recent runs)
  */
 export function generateTwelveWeekPlan(
   goal: Goal,
-  recentRuns: Run[]
+  recentRuns: Run[],
+  assessment?: FitnessAssessment
 ): WeeklyPlan[] {
   const plans: WeeklyPlan[] = [];
   const raceDate = new Date(goal.raceDate);
   raceDate.setHours(0, 0, 0, 0);
   
-  // Calculate current weekly mileage from recent runs
-  const recentWeeklyMiles = recentRuns.length > 0
-    ? recentRuns
-        .filter(run => {
-          const runDate = new Date(run.date);
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          return runDate >= sevenDaysAgo;
-        })
-        .reduce((sum, run) => sum + run.distanceMiles, 0)
-    : 15; // Default starting point if no recent runs
+  // Calculate current weekly mileage from recent runs or assessment
+  let recentWeeklyMiles: number;
+  if (recentRuns.length > 0) {
+    recentWeeklyMiles = recentRuns
+      .filter(run => {
+        const runDate = new Date(run.date);
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        return runDate >= sevenDaysAgo;
+      })
+      .reduce((sum, run) => sum + run.distanceMiles, 0);
+  } else if (assessment) {
+    // Use assessment weekly mileage as baseline
+    recentWeeklyMiles = assessment.weeklyMileage;
+  } else {
+    // Fallback default (shouldn't happen if assessment is provided)
+    recentWeeklyMiles = 15;
+  }
   
   // Calculate target peak weekly mileage based on goal distance
-  // Half marathon: 35-45 miles, Marathon: 50-70 miles, 10K: 25-35 miles
   let peakWeeklyMiles: number;
   if (goal.distance >= 26) {
     peakWeeklyMiles = 55; // Marathon
@@ -38,9 +49,22 @@ export function generateTwelveWeekPlan(
     peakWeeklyMiles = 25; // 5K
   }
   
-  // Don't exceed current fitness by more than 20% in first week
+  // Adjust peak based on fitness level
+  if (assessment) {
+    if (assessment.fitnessLevel === 'beginner') {
+      peakWeeklyMiles = Math.round(peakWeeklyMiles * 0.8); // 20% lower for beginners
+    } else if (assessment.fitnessLevel === 'advanced') {
+      peakWeeklyMiles = Math.round(peakWeeklyMiles * 1.15); // 15% higher for advanced
+    }
+  }
+  
+  // Calculate starting mileage
+  // Don't exceed current fitness by more than 10% in first week
+  const fitnessLevel = assessment?.fitnessLevel || 'intermediate';
+  const minStartingMiles = fitnessLevel === 'beginner' ? 10 : fitnessLevel === 'intermediate' ? 15 : 20;
+  
   const startingMiles = Math.min(
-    Math.max(recentWeeklyMiles * 1.1, 15), // At least 10% increase from current
+    Math.max(recentWeeklyMiles * 1.1, minStartingMiles), // At least 10% increase from current, but respect minimums
     peakWeeklyMiles * 0.6 // But not more than 60% of peak
   );
   
@@ -79,7 +103,8 @@ export function generateTwelveWeekPlan(
       recentRuns,
       weekStart.toISOString(),
       targetWeeklyMiles,
-      week
+      week,
+      assessment
     );
     plans.push(plan);
   }
@@ -95,7 +120,8 @@ function generateWeeklyPlanWithTarget(
   recentRuns: Run[],
   weekStartDate: string,
   targetWeeklyMiles: number,
-  weekIndex: number
+  weekIndex: number,
+  assessment?: FitnessAssessment
 ): WeeklyPlan {
   const startDate = new Date(weekStartDate);
   startDate.setHours(0, 0, 0, 0);
@@ -103,8 +129,8 @@ function generateWeeklyPlanWithTarget(
   // Calculate goal pace
   const goalPace = goal.targetTimeMinutes / goal.distance;
   
-  // Get current pace profile from recent runs
-  const currentPaceProfile = inferPaceProfile(recentRuns, goal);
+  // Get current pace profile from recent runs or assessment
+  const currentPaceProfile = inferPaceProfile(recentRuns, goal, assessment);
   
   // Calculate current average pace from recent runs
   const currentAvgPace = recentRuns.length > 0
@@ -145,7 +171,15 @@ function generateWeeklyPlanWithTarget(
   const daysToGoal = Math.ceil((raceDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   
   // Generate base plan with progressive paces
-  const basePlan = generateWeeklyPlanWithPaces(goal, recentRuns, weekStartDate, progressivePaceProfile, daysToGoal);
+  const basePlan = generateWeeklyPlanWithPaces(
+    goal, 
+    recentRuns, 
+    weekStartDate, 
+    progressivePaceProfile, 
+    daysToGoal,
+    assessment,
+    targetWeeklyMiles
+  );
   
   // Scale distances to match target weekly mileage
   const currentTotal = basePlan.days.reduce((sum, day) => sum + day.distanceMiles, 0);
