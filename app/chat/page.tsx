@@ -423,10 +423,9 @@ export default function ChatPage() {
   const handleAssessmentComplete = async (assessment: FitnessAssessment) => {
     setShowAssessmentPrompt(false);
     showToast.success('Fitness assessment saved! Your plan will be updated.');
-    // Reload plan with new assessment data
+    // Reload plan - don't pass runs, let API check for fitness assessment
     const goalData = await loadGoalData();
-    const runsData = await loadStravaRuns();
-    await loadPlan(runsData, goalData);
+    await loadPlan(undefined, goalData); // Pass undefined to let API check for assessment
   };
 
   const handleAssessmentDismiss = () => {
