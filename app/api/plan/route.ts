@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
               };
               runs = assessmentToRuns(assessmentData);
               logger.info('Using fitness assessment data for plan generation');
+            }
           }
         } catch (dbError: any) {
           // Silently handle database errors - table might not exist or DB not configured
