@@ -65,8 +65,9 @@ export function generateWeeklyPlanWithPaces(
   const diff = startDate.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
   startDate.setDate(diff);
   
-  // Determine days per week from assessment or default to 5
-  const daysPerWeek = assessment?.daysPerWeek || 5;
+  // Determine days per week from assessment - REQUIRED, no default
+  // If no assessment provided, we can't generate a proper plan
+  const daysPerWeek = assessment?.daysPerWeek || 3; // Conservative default if somehow missing
   
   // Generate 7 days (Monday through Sunday)
   const days: WeeklyPlanDay[] = [];
@@ -229,8 +230,17 @@ function generateDayPlan(
   assessment?: FitnessAssessment
 ): WeeklyPlanDay {
   const fitnessLevel = assessment?.fitnessLevel || 'intermediate';
-  const weeklyMileage = assessment?.weeklyMileage || 20;
-  const avgMilesPerRun = weeklyMileage / (assessment?.daysPerWeek || 5);
+  // Use assessment weekly mileage - if 0 or missing, use very conservative estimate based on daysPerWeek
+  const daysPerWeek = assessment?.daysPerWeek || 3;
+  let weeklyMileage = assessment?.weeklyMileage;
+  
+  if (!weeklyMileage || weeklyMileage === 0) {
+    // Very conservative starting point based on days per week
+    // For 3 days: 6-9 miles/week, 4 days: 8-12, 5 days: 10-15, etc.
+    weeklyMileage = daysPerWeek * 2.5; // ~2.5 miles per run day for beginners
+  }
+  
+  const avgMilesPerRun = weeklyMileage / daysPerWeek;
   
   if (runType === 'rest') {
     return {
@@ -291,7 +301,12 @@ function generateDayPlan(
   
   if (runType === 'long') {
     // Long run: 20-35% of weekly mileage, max based on goal distance
-    const weeklyMiles = assessment?.weeklyMileage || 20;
+    // Use the same calculation as above to ensure consistency
+    const daysPerWeekForLong = assessment?.daysPerWeek || 3;
+    let weeklyMiles = assessment?.weeklyMileage;
+    if (!weeklyMiles || weeklyMiles === 0) {
+      weeklyMiles = daysPerWeekForLong * 2.5;
+    }
     const longRunPercent = fitnessLevel === 'beginner' ? 0.25 : fitnessLevel === 'intermediate' ? 0.30 : 0.35;
     let longRunDistance = Math.round(weeklyMiles * longRunPercent * 10) / 10;
     

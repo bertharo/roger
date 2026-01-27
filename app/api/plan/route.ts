@@ -447,8 +447,13 @@ export async function POST(request: NextRequest) {
     // Calculate target weekly mileage if using assessment
     let targetWeeklyMiles: number | undefined = undefined;
     if (assessmentData && !hasStravaData) {
-      // Use assessment weekly mileage as starting point
-      targetWeeklyMiles = assessmentData.weeklyMileage;
+      // Use assessment weekly mileage, but if 0, calculate conservatively based on daysPerWeek
+      if (assessmentData.weeklyMileage > 0) {
+        targetWeeklyMiles = assessmentData.weeklyMileage;
+      } else {
+        // Very conservative: ~2.5 miles per run day for beginners
+        targetWeeklyMiles = assessmentData.daysPerWeek * 2.5;
+      }
     }
     
     const plan = generateWeeklyPlan(goal, recentRuns, weekStart || undefined, assessmentData, targetWeeklyMiles);
